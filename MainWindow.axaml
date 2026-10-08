@@ -1,0 +1,131 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Miche.Mac.Controls"
+        x:Class="Miche.Mac.MainWindow" Title="Miche" Width="980" Height="780"
+        MinWidth="480" MinHeight="360" WindowStartupLocation="CenterScreen">
+  <Window.Background>
+    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#302238" Offset="0" />
+      <GradientStop Color="#1B1624" Offset="1" />
+    </LinearGradientBrush>
+  </Window.Background>
+  <Grid Margin="24,0,24,20" RowDefinitions="46,*,Auto">
+    <Border x:Name="WindowHeader" Background="Transparent" PointerPressed="WindowHeaderPressed">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+    <Button x:Name="SpaceMenuButton" Click="OpenSpaceMenu" HorizontalAlignment="Left" VerticalAlignment="Center" FontSize="11"
+            MaxWidth="260" AutomationProperties.Name="Your miches · create, switch or rename">
+      <StackPanel Orientation="Horizontal" Spacing="5">
+        <TextBlock Text="miche /" Foreground="#DFA6AD" />
+        <TextBlock x:Name="SpaceTitle" TextTrimming="CharacterEllipsis" MaxWidth="190" />
+        <TextBlock Text="⌄" />
+      </StackPanel>
+    </Button>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+        <Path Width="36" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+              Stroke="#E6C89E" StrokeThickness="1" Opacity="0.6" Data="M 0,11 L 6,11 L 6,7 L 12,7 L 12,3 L 18,0 L 24,3 L 24,7 L 30,7 L 30,11 L 36,11" IsHitTestVisible="False" />
+          <Button x:Name="FlowSummonButton" Content="FLOW" Click="OpenFlow" FontSize="11" AutomationProperties.Name="Open Flow" />
+        </StackPanel>
+        <controls:WindowButtons x:Name="MainWindowButtons" Grid.Column="2" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+    <Grid Grid.Row="1" Margin="8,12,8,32">
+      <Grid x:Name="Board" RowDefinitions="Auto,*">
+        <StackPanel x:Name="CompactHeader" IsVisible="False" HorizontalAlignment="Center" Margin="0,0,0,18">
+          <controls:Wordmark Width="145" />
+          <TextBlock Text="a little space for today" FontFamily="Menlo" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" />
+        </StackPanel>
+        <StackPanel x:Name="EmptyBoard" Grid.RowSpan="2" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="540">
+          <Path Width="88" Height="42" HorizontalAlignment="Center" Stroke="#E6C89E" StrokeThickness="1.2" Opacity="0.7" Margin="0,0,0,30"
+                Data="M 44,40 L 8,22 M 44,40 L 18,10 M 44,40 L 31,2 M 44,40 L 44,0 M 44,40 L 57,2 M 44,40 L 70,10 M 44,40 L 80,22 M 8,22 L 8,30 L 18,30 L 18,34 L 31,34 L 31,38 L 44,40 L 57,38 L 57,34 L 70,34 L 70,30 L 80,30 L 80,22" IsHitTestVisible="False" />
+          <controls:Wordmark x:Name="FullWordmark" Width="460" MaxWidth="{Binding #Board.Bounds.Width}" />
+          <TextBlock Text="a little space for today" FontFamily="Menlo" FontSize="16" HorizontalAlignment="Center" Margin="0,18,0,0" />
+          <Border Width="206" Padding="0,5" Margin="0,38,0,0" HorizontalAlignment="Center">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock Text="/" Foreground="#DFA6AD" FontFamily="Menlo" FontSize="22" Margin="0,0,12,0" VerticalAlignment="Center" />
+              <TextBox Grid.Column="1" x:Name="QueryBox" FontFamily="Menlo" FontSize="14" MaxLength="100" BorderThickness="0"
+                       Watermark="what are we opening?" TextChanged="QueryChanged" GotFocus="QueryFocused"
+                       KeyDown="QueryKeyDown" AutomationProperties.Name="Find or add a widget" />
+            </Grid>
+          </Border>
+          <Popup x:Name="LookupSuggestions" PlacementTarget="{Binding #QueryBox}" Placement="Bottom" VerticalOffset="8" IsLightDismissEnabled="True">
+            <Border Width="320" Background="#2C2033" BorderBrush="#5D435C" BorderThickness="1" CornerRadius="5" Padding="8">
+              <StackPanel>
+                <Button x:Name="DumpSuggestion" Content="+ add Dump" Click="AddDump" FontFamily="Georgia" FontSize="17" Foreground="#F4E5D1" HorizontalAlignment="Stretch" Padding="8,10" />
+                <Button x:Name="NewSuggestion" Content="+ new Miche" Click="NewSpace" FontFamily="Georgia" FontSize="17" HorizontalAlignment="Stretch" Padding="8,10" />
+                <Button x:Name="GroundSuggestion" Content="Dumping Ground · all captures" Click="AddDump" HorizontalAlignment="Stretch" />
+                <Button x:Name="LocalSuggestion" Content="Dump · this Miche" Click="AddLocalDump" HorizontalAlignment="Stretch" />
+                <Button x:Name="MeiliSuggestion" Content="The Daily Meili · production studio" Click="OpenMeili" HorizontalAlignment="Stretch" />
+                <Button x:Name="ClipboardSuggestion" Content="Clipboard · links &amp; files" Click="OpenClipboard" HorizontalAlignment="Stretch" />
+                <Button x:Name="FlowSuggestion" Content="Flow · local time blocks" Click="OpenFlow" HorizontalAlignment="Stretch" />
+                <TextBlock x:Name="LookupHint" Text="one shared inbox for your thoughts" Classes="meta" Margin="8,4" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </Popup>
+        </StackPanel>
+        <ScrollViewer x:Name="DeskScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="20">
+          <ContentControl x:Name="ClipboardHost" MaxWidth="380" HorizontalContentAlignment="Stretch" />
+          <controls:WidgetDesk x:Name="DeskPanel" AutomationProperties.Name="Widget desk: Option arrows move, Option Shift arrows resize">
+            <ContentControl x:Name="DumpHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+          </controls:WidgetDesk>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+      <Border x:Name="NamingPanel" IsVisible="False" MaxWidth="540" VerticalAlignment="Center" Margin="0,0,0,16">
+        <StackPanel>
+          <TextBlock x:Name="NamingTitle" Text="a little space of your own" Classes="meta" Margin="4,0,0,20" />
+          <Grid ColumnDefinitions="Auto,*">
+            <TextBlock Text="miche:" FontFamily="Georgia" FontSize="46" VerticalAlignment="Center" Margin="0,0,16,0" />
+            <TextBox Grid.Column="1" x:Name="NameBox" MaxLength="80" FontSize="38" VerticalContentAlignment="Center"
+                     KeyDown="NameKeyDown" AutomationProperties.Name="Name your miche" />
+          </Grid>
+          <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,18,0,0">
+            <Button Content="enter ↵" Classes="primary" Click="ConfirmName" />
+            <Button Content="cancel" Click="CancelOverlay" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <Border x:Name="ManagePanel" IsVisible="False" MaxWidth="640" Padding="14" VerticalAlignment="Stretch">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,20">
+            <TextBlock Text="your miches" FontFamily="Georgia" FontSize="30" />
+            <Button Grid.Column="1" Content="done" Click="CancelOverlay" />
+          </Grid>
+          <WrapPanel Grid.Row="1" Margin="0,0,0,28">
+            <Button Content="rename this niche" Click="RenameSpace" Margin="0,0,12,8" />
+            <Button x:Name="DeleteSpaceButton" Content="move to recently deleted" Click="DeleteSpace" Margin="0,0,0,8" />
+          </WrapPanel>
+          <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="14">
+              <TextBlock Text="recently deleted" Classes="meta" />
+              <StackPanel x:Name="TrashList" Spacing="12" />
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Grid>
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="8,12,8,0">
+      <TextBlock x:Name="DateLabel" Classes="meta" VerticalAlignment="Bottom" Margin="0,0,16,0" />
+      <TextBlock Grid.Column="1" x:Name="Status" Classes="meta" Foreground="#E6C89E" TextWrapping="Wrap" HorizontalAlignment="Right" />
+    </Grid>
+    <controls:VisionView x:Name="VisionOverlay" Grid.Row="1" Grid.RowSpan="2" IsVisible="False" Margin="-24,0,-24,-20" />
+    <Border x:Name="CommandOverlay" Grid.Row="1" IsVisible="False" Width="360" MaxWidth="{Binding #Board.Bounds.Width}"
+            VerticalAlignment="Top" Margin="0,28,0,0" Padding="16" CornerRadius="12" Background="#2C2033" BorderBrush="#5D435C" BorderThickness="1">
+      <StackPanel Spacing="8">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox x:Name="CommandBox" MaxLength="100" Watermark="/dump · /new" TextChanged="QueryChanged"
+                   KeyDown="QueryKeyDown" AutomationProperties.Name="Search Miche commands" />
+          <Button Grid.Column="1" Content="esc" Click="CancelCommands" AutomationProperties.Name="Close command search" />
+        </Grid>
+        <Button x:Name="CommandDumpSuggestion" Content="Dump · shared inbox" Click="AddDump" HorizontalAlignment="Stretch" />
+        <Button x:Name="CommandNewSuggestion" Content="New Miche" Click="NewSpace" HorizontalAlignment="Stretch" />
+        <Button x:Name="CommandGroundSuggestion" Content="Dumping Ground · all captures" Click="AddDump" HorizontalAlignment="Stretch" />
+        <Button x:Name="CommandLocalSuggestion" Content="Dump · this Miche" Click="AddLocalDump" HorizontalAlignment="Stretch" />
+        <Button x:Name="CommandMeiliSuggestion" Content="The Daily Meili · production studio" Click="OpenMeili" HorizontalAlignment="Stretch" />
+        <Button x:Name="CommandClipboardSuggestion" Content="Clipboard · links &amp; files" Click="OpenClipboard" HorizontalAlignment="Stretch" />
+        <Button x:Name="CommandFlowSuggestion" Content="Flow · local time blocks" Click="OpenFlow" HorizontalAlignment="Stretch" />
+        <TextBlock x:Name="CommandHint" Classes="meta" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

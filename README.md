@@ -6,13 +6,14 @@ A little space for today. A local desktop workspace bringing Miche’s Windows c
 
 ## Progress · October 7, 2026
 
-- **Vision:** draggable text, images, horizontal/vertical lines, rounded rectangles and ovals/circles. Independent shape resizing, Shift to preserve proportions, rotation, recovery, editable saved boards. −/+ zoom from 25–200%, reset to 100%, and fit; zoom leaves saved geometry unchanged.
-- **CLIPBOARD:** a renameable shelf for quick-access URLs and owned copies of files. Open links/files, copy URLs, remove/restore entries, share the collection across Miches. Open with `/clipboard`.
+- **Vision:** draggable text, images, horizontal/vertical lines, rounded rectangles and ovals/circles. Drag a selection box or Shift-click to select a group and move it together. Cmd+C/V duplicates selected elements with new identities; Cmd+Shift+> / < adjusts size. Text boxes hug their content, with a fitted “round box” action. Independent shape resizing, Shift to preserve proportions, rotation, recovery, editable saved boards. −/+ zoom from 25–200%, reset to 100%, and fit; zoom leaves saved geometry unchanged.
+- **CLIPBOARD:** a compact, renameable shelf of link/file chips. Click a link chip to copy its URL, its small arrow to open it, or a file chip to open the saved file. Paste a URL + Enter or drop links/files. Pop out, dock, and reopen the same persistent shelf. Remove/restore entries through options; share the collection across Miches. Open with `/clipboard`.
 - **Dump:** shared/local captures, popout/dock, saved desk positions, scoped drafts, flush history and recovery.
 - **Flow:** local time blocks, explicit start/pause, selected-task completion, future reservations, reorder/resize and undo. Open with `/flow`.
 - **Meili studio:** a local creative production workflow, frame approval, video generation, review notes and recoverable provider jobs. Open with `/thedailymeili`.
 
 ![Vision shapes and zoom](docs/images/vision-shapes-zoom.png)
+![Vision group selection and fitted labels](docs/images/vision-group-controls.png)
 ![Clipboard demo](docs/images/clipboard-widget.png)
 ![Flow demo](docs/images/flow-today.png)
 
@@ -33,7 +34,7 @@ bash tools/build-mac.sh
 bash tools/install-mac.sh
 ```
 
-The bundle is a local development preview, unsigned and not notarized. Data is stored locally in Application Support/Miche.Mac with a single-writer lock. Schema upgrades keep exact pre-upgrade backups. Cross-device sync and full Windows parity are pending; the Vision image picker has an intermittent native Open-button issue.
+The bundle is a local development preview, unsigned and not notarized. Data is stored locally in Application Support/Miche.Mac with a single-writer lock. Schema 7 upgrades keep exact pre-upgrade backups. This snapshot is preview 0.9.0. Cross-device sync and full Windows parity are pending; the Vision image picker has an intermittent native Open-button issue.
 
 ## Validation
 
@@ -44,7 +45,7 @@ dotnet run --project tests/flow/Miche.FlowChecks.csproj
 python3 -m unittest discover -s tests/meili -v
 ```
 
-Latest: **105 persistence checks, 227 headless UI checks, 50 Flow checks, and 8 Meili tests pass**. Native Mac QA verified shape creation, scaled dragging/fit, Clipboard rename/link creation, and normal save/restart. Screenshots use synthetic demo data.
+Latest: **113 persistence checks, 253 headless UI checks, 50 Flow checks, and 8 Meili tests pass**. Native Mac QA verified shape creation, scaled dragging/fit, element copy/paste, Clipboard rename/link creation, popout/dock and floating-shelf restart. Group selection, Shift-click routing, size shortcuts and fitted text are covered by headless pointer/control checks. Screenshots use synthetic demo data.
 
 ## Privacy
 

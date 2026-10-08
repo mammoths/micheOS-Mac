@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="ui/**/*.cs;flow/**/*.cs" />
+    <Compile Include="../Models/ClipboardModels.cs" Link="Models/ClipboardModels.cs" />
+    <Compile Include="../Services/ClipboardStore.cs" Link="Services/ClipboardStore.cs" />
+    <Compile Include="../Models/Miche.cs" Link="Models/Miche.cs" />
+    <Compile Include="../Services/VisionPaste.cs" Link="Services/VisionPaste.cs" />
+    <Compile Include="../Services/VisionStore.cs" Link="Services/VisionStore.cs" />
+    <Compile Include="../Services/WorkspaceStore.cs" Link="Services/WorkspaceStore.cs" />
+    <Compile Include="../Services/DumpScopes.cs" Link="Services/DumpScopes.cs" />
+    <Compile Include="../Services/PastVisions.cs" Link="Services/PastVisions.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,7 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Miche.Mac.Controls.WindowButtons">
+  <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+    <Button x:Name="MinimizeWindowButton" Classes="window-control" Content="—" Click="Minimize" AutomationProperties.Name="Minimize window" ToolTip.Tip="Minimize" />
+    <Button x:Name="ExpandWindowButton" Classes="window-control" Content="◇" Click="Expand" AutomationProperties.Name="Expand or restore window" ToolTip.Tip="Expand / restore · double-click the header" />
+    <Button x:Name="CloseWindowButton" Classes="window-control close" Content="×" Click="CloseWindow" AutomationProperties.Name="Close window" ToolTip.Tip="Close · ⌘W" />
+  </StackPanel>
+</UserControl>

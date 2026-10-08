@@ -1,0 +1,100 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Miche.Mac.App" Name="Miche" RequestedThemeVariant="Dark">
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Helvetica Neue" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="#F4E5D1" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#BEA8B9" />
+      <Setter Property="FontFamily" Value="Menlo" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                  CornerRadius="{TemplateBinding CornerRadius}">
+            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button:pointerover">
+      <Setter Property="Foreground" Value="#E6C89E" />
+    </Style>
+    <Style Selector="Button:pressed">
+      <Setter Property="Opacity" Value="0.8" />
+    </Style>
+    <Style Selector="Button:disabled">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#DFA6AD" />
+      <Setter Property="Foreground" Value="#1B1624" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Padding" Value="12,6" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#F4E5D1" />
+      <Setter Property="BorderBrush" Value="#5D435C" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="2,4" />
+      <Setter Property="CaretBrush" Value="#DFA6AD" />
+    </Style>
+    <Style Selector="TextBox /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="{Binding BorderThickness, RelativeSource={RelativeSource TemplatedParent}}" />
+      <Setter Property="BorderBrush" Value="#5D435C" />
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement, TextBox:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#5D435C" />
+      <Setter Property="BorderThickness" Value="{Binding BorderThickness, RelativeSource={RelativeSource TemplatedParent}}" />
+    </Style>
+    <Style Selector="TextBox:focus, TextBox:pointerover">
+      <Setter Property="Foreground" Value="#F4E5D1" />
+    </Style>
+    <Style Selector="TextBox /template/ TextBlock#PART_Watermark, TextBox:focus /template/ TextBlock#PART_Watermark, TextBox:pointerover /template/ TextBlock#PART_Watermark">
+      <Setter Property="Foreground" Value="#BEA8B9" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="TextBlock.meta">
+      <Setter Property="FontFamily" Value="Menlo" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#BEA8B9" />
+    </Style>
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="Background" Value="#E6C89E" />
+      <Setter Property="Foreground" Value="#2C2033" />
+    </Style>
+    <Style Selector="Button:focus-visible">
+      <Setter Property="Background" Value="#50394F" />
+      <Setter Property="Foreground" Value="#F4E5D1" />
+    </Style>
+    <Style Selector="Button.window-control">
+      <Setter Property="Width" Value="26" />
+      <Setter Property="Height" Value="26" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="#D7BCC8" />
+      <Setter Property="FontSize" Value="17" />
+    </Style>
+    <Style Selector="Button.window-control:pointerover">
+      <Setter Property="Background" Value="#50394F" />
+      <Setter Property="Foreground" Value="#F4E5D1" />
+    </Style>
+    <Style Selector="Button.window-control.close:pointerover">
+      <Setter Property="Background" Value="#765063" />
+    </Style>
+  </Application.Styles>
+</Application>

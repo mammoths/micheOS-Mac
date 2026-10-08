@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Miche.Mac.Controls" x:Class="Miche.Mac.Controls.DumpView">
+  <Border Background="#2C2033" BorderBrush="#5D435C" BorderThickness="1" CornerRadius="12">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+      <Border x:Name="HeaderBar" Background="Transparent" BorderBrush="#5D435C" BorderThickness="0,0,0,1" Padding="14,10" PointerPressed="HeaderPressed" ToolTip.Tip="Drag on the desk; Option+arrows move, Option+Shift+arrows resize">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <TextBlock Text="02" Classes="meta" Margin="0,0,8,0" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="DUMP" FontFamily="Menlo" FontSize="12" FontWeight="Bold" Foreground="#E6C89E" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+            <Button x:Name="PopOutButton" Content="⇱" Click="PopOut" Padding="6,0" AutomationProperties.Name="Pop out Dump" ToolTip.Tip="Pop out" />
+            <Button x:Name="DockButton" Content="⇲" Click="Dock" Padding="6,0" AutomationProperties.Name="Dock Dump" ToolTip.Tip="Return to your desk" />
+            <Button x:Name="HomeButton" Content="⌂" Click="Home" Padding="6,0" AutomationProperties.Name="Open Miche home" ToolTip.Tip="Open home" />
+            <Button Content="hide" Click="Hide" Padding="6,0" AutomationProperties.Name="Hide Dump without deleting captures" />
+            <controls:WindowButtons x:Name="FloatWindowButtons" IsVisible="False" Margin="8,0,0,0" />
+          </StackPanel>
+        </Grid>
+      </Border>
+      <StackPanel Grid.Row="1" Margin="14,12,14,12" Spacing="8">
+        <WrapPanel>
+          <TextBlock x:Name="ScopeLabel" Classes="meta" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <Button Content="all" Click="SharedScope" AutomationProperties.Name="Shared Dump across all Miches" />
+          <Button Content="this Miche" Click="LocalScope" AutomationProperties.Name="Local Dump owned by this Miche" />
+          <Button x:Name="FlushButton" Content="flush" Click="BeginFlush" />
+          <Button Content="past flushes" Click="ShowArchives" />
+          <Button x:Name="UndoFlushButton" Content="undo flush" Click="UndoFlush" IsVisible="False" />
+        </WrapPanel>
+        <Border x:Name="FlushPanel" IsVisible="False" BorderBrush="#5D435C" BorderThickness="1" Padding="8" CornerRadius="6">
+          <StackPanel Spacing="8">
+            <TextBlock x:Name="FlushPrompt" TextWrapping="Wrap" />
+            <WrapPanel><Button x:Name="ConfirmFlushButton" Content="archive captures" Click="FlushConfirmed" /><Button Content="cancel" Click="CancelFlush" /></WrapPanel>
+          </StackPanel>
+        </Border>
+        <Border x:Name="ArchivePanel" IsVisible="False" MaxHeight="160"><ScrollViewer><StackPanel x:Name="ArchiveList" /></ScrollViewer></Border>
+        <TextBox x:Name="CaptureBox" MaxLength="20000" AcceptsReturn="True" ClearSelectionOnLostFocus="False" MinHeight="60" MaxHeight="140"
+                 TextWrapping="Wrap" TextChanged="DraftChanged" AutomationProperties.Name="Capture a thought" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="enter to send · shift+enter for a new line" Classes="meta" Opacity="0.7" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
+          <Button Grid.Column="1" Content="SEND →" Classes="primary" Click="Send" />
+        </Grid>
+      </StackPanel>
+      <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="14,0,14,12">
+        <StackPanel x:Name="CaptureList" Spacing="10" />
+      </ScrollViewer>
+      <TextBlock x:Name="Feedback" Grid.Row="3" Classes="meta" Foreground="#E6C89E" TextWrapping="Wrap" IsVisible="False" Margin="14,0,14,8" />
+      <Border x:Name="ResizeGrip" Grid.RowSpan="4" Width="16" Height="16" Background="Transparent"
+              HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="BottomRightCorner" PointerPressed="ResizePressed"
+              ToolTip.Tip="Resize card">
+        <TextBlock Text="◢" FontSize="10" Opacity="0.45" Foreground="#DFA6AD" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,2" />
+      </Border>
+    </Grid>
+  </Border>
+</UserControl>
