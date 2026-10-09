@@ -50,3 +50,12 @@ Latest: **113 persistence checks, 253 headless UI checks, 50 Flow checks, and 8 
 ## Privacy
 
 This source snapshot excludes API keys, local databases, saved files, resumes, production outputs, personal screenshots, logs, binaries and migration reference archives. Bring your own fal credentials and identity reference image locally. No user data is needed to build the app.
+
+
+## 0.10 · Blank pages and shared tables
+
+Double-click blank Miche space or use `/page` to create a small page. Write, format selected text, add images, nest pages, and pop out or expand the same document. Right-click for insertions; empty cells and paragraphs stay blank. Right-click a nested page to delete it recoverably.
+
+Tables share one schema across pages, `/table` widgets and Vision, with row/column editing, Tab navigation, colors and group sizing. See [blank-page scope](docs/BLANK-PAGES.md) for shortcuts, persistence and limits.
+
+Validation: 117 store, 273 headless UI, 50 Flow and 8 Meili checks. Native synthetic QA additionally checked rich formatting, image import, nested-page deletion, blank-space menus and restart retention.

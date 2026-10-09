@@ -40,7 +40,7 @@ public sealed partial class WorkspaceSession
                 _flowWindow=new FlowWindow(this,repository,Store.Snapshot.Index.Miches.Single(m=>m.Id==repository.OriginMicheId).Name);
                 _flowWindow.Closed+=(_,_)=>{
                     _flowWindow=null;
-                    if(!IsQuitting&&(_home is null||!_home.IsVisible)&&_floating.Count==0&&_clipboardWindow?.IsVisible!=true&&_meiliWindow?.IsVisible!=true)Dispatcher.UIThread.Post(()=>{if(!TryQuit())OpenHome();});
+                    if(!IsQuitting&&(_home is null||!_home.IsVisible)&&_pageWindows.Count==0&&_floating.Count==0&&_clipboardWindow?.IsVisible!=true&&_meiliWindow?.IsVisible!=true)Dispatcher.UIThread.Post(()=>{if(!TryQuit())OpenHome();});
                 };
             }
             if(_flowWindow.WindowState==WindowState.Minimized)_flowWindow.WindowState=WindowState.Normal;

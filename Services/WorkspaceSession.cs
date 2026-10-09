@@ -26,6 +26,7 @@ public sealed partial class WorkspaceSession : IDisposable
         Store = new WorkspaceStore(directory);
         Store.Changed += OnStoreChanged;
         InitializeExistingFlow();
+        InitializePages();
     }
 
     public MainWindow OpenHome()
@@ -41,6 +42,7 @@ public sealed partial class WorkspaceSession : IDisposable
         _home.Activate();
         if(Store.Snapshot.Clipboard.Floating&&_clipboardWindow is null)PopoutClipboard();
         Synchronize();
+        RestorePageWindows();
         if (created)
         {
             var state = Store.Snapshot;
@@ -118,6 +120,7 @@ public sealed partial class WorkspaceSession : IDisposable
         _home?.CancelDeskGesture();
         if (_home is not null && !_home.PrepareVisionToLeave()) throw new IOException("Vision draft could not be saved. Keep this window open and retry.");
         if (_flowWindow is not null && !_flowWindow.SaveBeforeClose()) throw new IOException("Flow could not save. Keep its window open and retry.");
+        foreach(var (id, window) in _pageWindows)Pages.Host(id,true,window.Geometry());
         if(_clipboardWindow is not null)Store.SetClipboardFloating(true,_clipboardWindow.Geometry());
         Store.SaveEditors(_views.ToDictionary(p => p.Key, p => p.Value.EditorSnapshot()),
             _floating.ToDictionary(p => p.Key, p => p.Value.Geometry()));
@@ -127,24 +130,27 @@ public sealed partial class WorkspaceSession : IDisposable
     {
         if (IsQuitting) return true;
         if (!Act(SaveAllEditors)) return false;
-        if (_floating.Count > 0 || _clipboardWindow?.IsVisible == true || _flowWindow?.IsVisible == true || _meiliWindow?.IsVisible == true) _home?.Hide();
+        if (_pageWindows.Count > 0 || _floating.Count > 0 || _clipboardWindow?.IsVisible == true || _flowWindow?.IsVisible == true || _meiliWindow?.IsVisible == true) _home?.Hide();
         else Dispatcher.UIThread.Post(() => TryQuit());
         return false;
     }
 
     public bool TryQuit()
     {
+        if(!FlushPagesForQuit())return false;
         if (IsQuitting) return true;
         if (_meiliWindow is not null && !_meiliQuitApproved)
         {
             if (!_meiliQuitPending) { _meiliQuitPending=true; _meiliWindow.Flush(ok=>{_meiliQuitPending=false;if(ok){_meiliQuitApproved=true;TryQuit();}}); }
             return false;
         }
-        if (!Act(SaveAllEditors, "Drafts saved.")) return false;
+        if (!Act(SaveAllEditors, "Drafts saved.")){_pageQuitApproved=false;return false;}
         IsQuitting = true;
         foreach (var view in _views.Values) view.StopAutosave();
         foreach (var window in _floating.Values.ToArray()) window.CloseForTransfer();
         _floating.Clear();
+        foreach(var window in _pageWindows.Values.ToArray())window.CloseForTransfer();
+        _pageWindows.Clear();
         _clipboardWindow?.CloseForTransfer();
         _flowWindow?.Close();
         _meiliWindow?.CloseSaved();
@@ -193,7 +199,7 @@ public sealed partial class WorkspaceSession : IDisposable
             var widget = state.Widgets.Single(w => w.Id == id);
             window.Title = "Dump · " + state.Index.Miches.Single(m => m.Id == widget.MicheId).Name;
         }
-        if (_floating.Count == 0 && _clipboardWindow?.IsVisible != true && _flowWindow?.IsVisible != true && _home is not null && !_home.IsVisible && !IsQuitting) OpenHome();
+        if (_pageWindows.Count == 0 && _floating.Count == 0 && _clipboardWindow?.IsVisible != true && _flowWindow?.IsVisible != true && _home is not null && !_home.IsVisible && !IsQuitting) OpenHome();
     }
 
     public static void Detach(DumpView view)

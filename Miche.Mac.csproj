@@ -15,6 +15,7 @@
     <Compile Remove="reference/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="PageEditor/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="MeiliStudio/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="native/libmeili-webview.dylib" Link="libmeili-webview.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
   </ItemGroup>

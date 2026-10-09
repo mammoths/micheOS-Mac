@@ -800,6 +800,40 @@ try
     window.Close(); Jobs(); Check(session.IsQuitting, "Last home close didn't quit");
     using var unlocked = new WorkspaceStore(root);
     Check(unlocked.Snapshot.Widgets.Count == 2, "Quit didn't release writer or lost instances");
+    // New page and shared-table contracts: persistence, failure boundaries and routed UI.
+    using(var pageSession=new WorkspaceSession(Path.Combine(root,"pages-contract")))
+    {
+        var pw=pageSession.OpenHome();Jobs();pw.OpenCommands();Named<TextBox>(pw,"CommandBox").Text="/table";Named<TextBox>(pw,"CommandBox").RaiseEvent(new KeyEventArgs{RoutedEvent=InputElement.KeyDownEvent,Key=Key.Enter});Jobs();
+        var page=pageSession.Pages.Snapshot.Pages.Single();var view=pageSession.PageViewFor(page.Id);
+        Check(page.Blocks.Single().Kind=="table"&&Named<Miche.Mac.Controls.PageDesk>(pw,"PagesDesk").Children.Contains(view),"Standalone table was not a docked page");
+        var moveAt=view.MoveGrip.TranslatePoint(new Point(6,6),pw)!.Value;
+        pw.MouseDown(moveAt,MouseButton.Left);pw.MouseMove(moveAt+new Vector(60,30));pw.MouseUp(moveAt+new Vector(60,30),MouseButton.Left);Jobs();
+        Check(pageSession.Pages.Get(page.Id).Left==page.Left+60&&pageSession.Pages.Get(page.Id).Top==page.Top+30,"Page drag did not save release position");
+        var resizeAt=view.ResizeGrip.TranslatePoint(new Point(5,5),pw)!.Value;
+        pw.MouseDown(resizeAt,MouseButton.Left);pw.MouseMove(resizeAt+new Vector(40,20));pw.MouseUp(resizeAt+new Vector(40,20),MouseButton.Left);Jobs();
+        Check(pageSession.Pages.Get(page.Id).Width==page.Width+40&&pageSession.Pages.Get(page.Id).Height==page.Height+20,"Page resize did not save release dimensions");
+        view.TitleEditor.Text="calendar";Jobs();Check(pageSession.Pages.Get(page.Id).Title=="calendar","Page title did not save before WebKit loads");
+        pageSession.PopoutPage(page.Id);Jobs();Check(pageSession.Pages.Get(page.Id).Floating,"Page did not pop out");
+        pageSession.DockPage(page.Id);Jobs();Check(!pageSession.Pages.Get(page.Id).Floating&&Named<Miche.Mac.Controls.PageDesk>(pw,"PagesDesk").Children.Contains(view),"Page did not dock the same view");
+        var child=pageSession.Pages.Create(page.MicheId,parent:page.Id);Check(pageSession.Pages.Get(child).ParentId==page.Id,"Nested page identity missing");
+        try{pageSession.Pages.Nest(page.Id,child);throw new Exception("Cycle accepted");}catch(InvalidDataException){checks++;}
+        Check(pageSession.Pages.Get(page.Id).ParentId is null,"Rejected nesting changed state");
+        pageSession.Pages.Delete(child,true);pageSession.Pages.Delete(child,false);Check(pageSession.Pages.Get(child).DeletedAt is null,"Page deletion was not recoverable");
+        var content=pageSession.Pages.Get(page.Id).Blocks;content[0].Cells[0][0].Add(new Miche.Mac.Models.PageRun{Text="Launch",Bold=true,Italic=true,Boxed=true,Size=24});
+        pageSession.Pages.SaveContent(page.Id,"calendar",content);var reopened=new PageRepository(pageSession.Store.DirectoryPath);
+        var run=reopened.Get(page.Id).Blocks[0].Cells[0][0][0];Check(run.Bold&&run.Italic&&run.Boxed&&run.Size==24&&run.Text=="Launch","Formatted text did not round-trip");
+        var bytes=File.ReadAllBytes(pageSession.Pages.FilePath);File.Delete(pageSession.Pages.FilePath+".bak");Directory.CreateDirectory(pageSession.Pages.FilePath+".bak");
+        try{pageSession.Pages.SaveTitle(page.Id,"must fail");throw new Exception("Save failure missing");}catch(Exception ex)when(ex is IOException or UnauthorizedAccessException){checks++;}
+        Check(pageSession.Pages.Get(page.Id).Title=="calendar"&&File.ReadAllBytes(pageSession.Pages.FilePath).SequenceEqual(bytes),"Failed page write changed memory or disk");Directory.Delete(pageSession.Pages.FilePath+".bak");
+        var table=TableContent.Create();TableContent.Dimensions(table);table.CellColors["1:1"]=TableContent.Palette[1].Color;
+        TableContent.Insert(table,true,0);Check(table.CellColors.ContainsKey("2:1"),"Insert shifted cell color incorrectly");TableContent.Remove(table,false,0);Check(table.CellColors.ContainsKey("2:0"),"Delete shifted cell color incorrectly");
+        var tw=new TableView(table,_=>true);tw.SelectCells(new[]{(0,0),(1,1)});tw.ResizeSelection(false,160);tw.ColorSelection(TableContent.Palette[3].Color);
+        Check(tw.Snapshot.ColumnWidths.All(w=>w==160)&&tw.Snapshot.CellColors["0:0"]==TableContent.Palette[3].Color,"Multi-cell size/color failed");
+        pw.ToggleVision();Jobs();var vision=Named<VisionView>(pw,"VisionOverlay");Check(vision.AddTable(new Point(40,40)),"Vision table creation failed");
+        var vi=pageSession.Store.Snapshot.VisionBoards.Single().Items.Single();vision.SelectObject(vi.Id);var copy=vision.CopySelection();Check(copy is not null&&vision.PasteSelection(copy),"Vision table did not copy/paste");
+        var tables=pageSession.Store.Snapshot.VisionBoards.Single().Items;Check(tables.Count==2&&tables.All(i=>i.Table?.Cells.Count==3),"Vision copied table content was lost");
+        Jobs();pw.UpdateLayout();Check(pw.GetVisualDescendants().OfType<TableView>().Count()==2&&pw.GetVisualDescendants().OfType<TableView>().All(t=>t.Bounds.Width>0&&t.GetVisualDescendants().OfType<TextBox>().Count()==9),"Vision table cells were not laid out");Render(pw,"pages-and-tables");pageSession.TryQuit();Jobs();
+    }
     Console.WriteLine($"PASS: {checks} headless window/control checks. Synthetic data only; native OS behavior remains unverified.");
 }
 finally

@@ -27,7 +27,9 @@ public partial class MainWindow : Window
         InitializeComponent();
         MacWindowChrome.Apply(this);
         VisionOverlay.Connect(_session);
-        VisionOverlay.CloseRequested += () => { VisionOverlay.IsVisible = false; SpaceMenuButton.Focus(); };
+        PagesDesk.Connect(_session);
+        Board.PointerPressed+=(_,e)=>{if(e.ClickCount==2&&!VisionOverlay.IsVisible&&!NamingPanel.IsVisible&&!ManagePanel.IsVisible&&(e.Source is Control blank&&!IsTextEntry(blank)&&blank is not Button&&!blank.GetVisualAncestors().Any(a=>a is PageView or DumpView or ClipboardView or Button))){var point=e.GetPosition(PagesDesk);_session.CreatePage(Math.Max(24,point.X),Math.Max(24,point.Y));e.Handled=true;}};
+        VisionOverlay.CloseRequested += () => { VisionOverlay.IsVisible = false; Refresh(); SpaceMenuButton.Focus(); };
         DateLabel.Text = DateTime.Now.ToString("ddd / dd MMM").ToUpperInvariant();
         _session.Changed += Refresh;
         _session.StatusChanged += ShowStatus;
@@ -62,12 +64,12 @@ public partial class MainWindow : Window
         if (!PrepareVisionToLeave()) return false;
         _commandReturnFocus = FocusManager?.GetFocusedElement() as Control;
         VisionOverlay.IsVisible = false; CancelDeskGesture(); CloseOverlays();
-        CommandOverlay.IsVisible = true; CommandBox.Text = "/";
+        CommandOverlay.IsVisible = true; PagesDesk.IsVisible=false; CommandBox.Text = "/";
         CommandBox.Focus(); CommandBox.CaretIndex = 1; UpdateLookup(); return true;
     }
     private void CloseCommands()
     {
-        CommandOverlay.IsVisible = false;
+        CommandOverlay.IsVisible = false;Refresh();
         if (_commandReturnFocus is { IsEffectivelyVisible: true }) _commandReturnFocus.Focus(); else SpaceMenuButton.Focus();
         _commandReturnFocus = null;
     }
@@ -76,6 +78,9 @@ public partial class MainWindow : Window
     private void ShowStatus(string message) => Status.Text = message;
 
     public void RefreshClipboard()=>Refresh();
+    public void RefreshPages()=>Refresh();
+    private void AddPage(object? sender,RoutedEventArgs e){CloseOverlays();_session.CreatePage();}
+    private void AddTablePage(object? sender,RoutedEventArgs e){CloseOverlays();_session.CreatePage(table:true);}
     private void Refresh()
     {
         if (_store is null) return;
@@ -133,8 +138,10 @@ public partial class MainWindow : Window
         ClipboardHost.IsVisible=showClipboard;
         if(!showClipboard)ClipboardHost.Content=null;
         DeskPanel.IsVisible=showDump;
-        DeskScroll.IsVisible=CompactHeader.IsVisible=showDump||showClipboard;
-        EmptyBoard.IsVisible = !showDump&&!showClipboard;
+        var hasPages=_session.Pages.Snapshot.Pages.Any(p=>p.MicheId==active.Id&&p.ParentId is null&&p.DeletedAt is null&&!p.Floating);
+        DeskScroll.IsVisible=CompactHeader.IsVisible=showDump||showClipboard||hasPages;
+        EmptyBoard.IsVisible = !showDump&&!showClipboard&&!hasPages;
+        PagesDesk.IsVisible=hasPages&&!VisionOverlay.IsVisible&&!CommandOverlay.IsVisible;PagesDesk.Refresh();
         DeleteSpaceButton.IsEnabled = active.Id != state.Index.RootMicheId;
         TrashList.Children.Clear();
         foreach (var archived in state.Trash.OrderByDescending(n => n.DeletedAt))
@@ -154,15 +161,15 @@ public partial class MainWindow : Window
     }
 
     private bool Act(Action action, string message = "Saved on this Mac.") => _session.Act(action, message);
-    public void CancelDeskGesture() => DeskPanel.CancelGesture();
+    public void CancelDeskGesture(){DeskPanel.CancelGesture();PagesDesk.CancelGesture();}
     public bool PrepareVisionToLeave() => VisionOverlay.PrepareToLeave();
     public void ToggleVision()
     {
         if (VisionOverlay.IsVisible)
-        { if (VisionOverlay.PrepareToLeave()) { VisionOverlay.IsVisible = false; SpaceMenuButton.Focus(); } }
+        { if (VisionOverlay.PrepareToLeave()) { VisionOverlay.IsVisible = false; Refresh(); SpaceMenuButton.Focus(); } }
         else
         {
-            CancelDeskGesture(); CloseOverlays(); VisionOverlay.IsVisible = true; VisionOverlay.RefreshBoard();
+            CancelDeskGesture(); CloseOverlays(); VisionOverlay.IsVisible = true; PagesDesk.IsVisible=false; VisionOverlay.RefreshBoard();
             Dispatcher.UIThread.Post(() => { if (VisionOverlay.IsVisible) VisionOverlay.BoardCanvas.Focus(); });
         }
     }
@@ -243,6 +250,8 @@ public partial class MainWindow : Window
             if (query.Equals("new", StringComparison.OrdinalIgnoreCase)) { BeginName(false); QueryBox.Text = ""; }
             else if (query.Equals("thedailymeili",StringComparison.OrdinalIgnoreCase) || query.Equals("meili",StringComparison.OrdinalIgnoreCase)) OpenMeili(sender,e);
             else if (query.Equals("flow",StringComparison.OrdinalIgnoreCase) || query.Equals("today",StringComparison.OrdinalIgnoreCase)) OpenFlow(sender,e);
+            else if (query.Equals("table",StringComparison.OrdinalIgnoreCase)) AddTablePage(sender,e);
+            else if (query.Equals("page",StringComparison.OrdinalIgnoreCase)||query.Equals("note",StringComparison.OrdinalIgnoreCase)) AddPage(sender,e);
             else if (query.Equals("clipboard",StringComparison.OrdinalIgnoreCase)) OpenClipboard(sender,e);
             else if (query.Equals("local-dump",StringComparison.OrdinalIgnoreCase)) AddLocalDump(sender,e);
             else if (query.Equals("dumping-ground",StringComparison.OrdinalIgnoreCase)) AddDump(sender,e);

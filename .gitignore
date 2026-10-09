@@ -22,3 +22,7 @@ results/
 *.dll
 *.dylib
 *.pdb
+
+pages.json
+pages.json.*
+page-images/

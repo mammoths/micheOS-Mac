@@ -8,7 +8,9 @@
   <ItemGroup>
     <Compile Remove="ui/**/*.cs;flow/**/*.cs" />
     <Compile Include="../Models/ClipboardModels.cs" Link="Models/ClipboardModels.cs" />
+    <Compile Include="../Services/TableContent.cs" Link="Services/TableContent.cs" />
     <Compile Include="../Services/ClipboardStore.cs" Link="Services/ClipboardStore.cs" />
+    <Compile Include="../Models/PageModels.cs" Link="Models/PageModels.cs" />
     <Compile Include="../Models/Miche.cs" Link="Models/Miche.cs" />
     <Compile Include="../Services/VisionPaste.cs" Link="Services/VisionPaste.cs" />
     <Compile Include="../Services/VisionStore.cs" Link="Services/VisionStore.cs" />

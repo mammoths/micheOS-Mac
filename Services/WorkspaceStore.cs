@@ -85,6 +85,10 @@ public sealed partial class WorkspaceStore : IDisposable
                     File.Copy(FilePath,Path.Combine(backups,"before-v7-"+Guid.NewGuid().ToString("N")+".json"));Commit(next,false);
                 }
 
+                if (_state.Version == 7)
+                {
+                    var next=Clone(_state);next.Version=8;var backups=Path.Combine(DirectoryPath,"backups");Directory.CreateDirectory(backups);File.Copy(FilePath,Path.Combine(backups,"before-v8-"+Guid.NewGuid().ToString("N")+".json"));Commit(next,false);
+                }
             }
             else
             {
@@ -291,7 +295,7 @@ public sealed partial class WorkspaceStore : IDisposable
     private static void Validate(Workspace state)
     {
         var index = state.Index;
-        if (state.Version is not (1 or 2 or 3 or 4 or 5 or 6 or 7) || index is null || index.Version != 1 || index.Miches is null ||
+        if (state.Version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8) || index is null || index.Version != 1 || index.Miches is null ||
             index.Miches.Count == 0 || state.Trash is null || state.RootDump is null ||
             index.Miches.Any(m => m is null || m.Id == Guid.Empty || string.IsNullOrWhiteSpace(m.Name) ||
                 m.Name.Length > 80 || m.Name.Any(char.IsControl)) ||

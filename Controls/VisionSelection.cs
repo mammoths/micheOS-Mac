@@ -96,7 +96,7 @@ public sealed partial class VisionView
             var height=item.Kind=="horizontal-line"?item.Height:item.Height*factor;
             var font=item.Kind=="text"?item.FontSize*factor:item.FontSize;
             if(width<8||height<8||width>4000||height>4000||font<8||font>200)return false;
-            item.Width=width;item.Height=height;item.FontSize=font;
+            item.Width=width;item.Height=height;item.FontSize=font;if(item.Kind=="table")ScaleTable(item,factor);
         }
         var saved=_session!.Act(()=>_session.Store.SaveVisionItems(_micheId,changed,_artifactId));RefreshBoard();return saved;
     }

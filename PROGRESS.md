@@ -1,5 +1,15 @@
 # Development progress
 
+## 0.10.0 · October 9, 2026
+
+Blank pages can grow from a compact note into a collection: rich text, rounded selections/blocks, owned PNG/JPEG images, nested pages, block reordering, resizing, popout/dock and recoverable deletion. Right-click provides insertions and child-page deletion, without persistent plus buttons or placeholder text.
+
+Tables use one validated schema throughout pages, standalone `/table` and Vision. Add/delete rows and columns, Tab through cells, select multiple cells, resize dimensions together and apply a small color palette. Vision tables retain object copy/paste and recovery.
+
+117 store, 273 headless UI, 50 Flow and 8 Meili checks pass. Native synthetic checks verified selected text formatting and sizing, table entry/color, owned image import, nested-page deletion, minimal empty cells, menus, popout/dock and restart persistence. Workspace schema 8 keeps an exact schema-7 backup. User content, local files and provider credentials are excluded.
+
+fal production integration is present; the Mac OpenRouter adapter remains pending. Live embeds of other widget types, export and collaboration are future scope.
+
 ## 0.9.0 · October 7, 2026
 
 Vision adds marquee selection, additive Shift-click selection, atomic group movement, Cmd+C/V element copies, and Cmd+Shift+> / < resizing. Text bounds fit their content; selected text can become one rounded label. Paste preserves spacing and creates independent identities, including owned copies of image assets.

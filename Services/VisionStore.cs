@@ -8,11 +8,11 @@ public sealed partial class WorkspaceStore
 {
     public static bool IsVisionShape(string kind) => kind is "horizontal-line" or "vertical-line" or "rounded-rectangle" or "ellipse";
     public static string VisionObjectName(VisionItem item) => item.Kind switch {
-        "image" => "image", "horizontal-line" => "horizontal line", "vertical-line" => "vertical line",
+        "table" => "table", "image" => "image", "horizontal-line" => "horizontal line", "vertical-line" => "vertical line",
         "rounded-rectangle" => "rounded rectangle", "ellipse" => "oval / circle", _ => item.Text[..Math.Min(30,item.Text.Length)]
     };
     public static VisionItem CopyVision(VisionItem item) => new() {
-        Id = item.Id, Kind = item.Kind, RoundedFrame=item.RoundedFrame, Text = item.Text, FileName = item.FileName,
+        Id = item.Id, Kind = item.Kind, Table=item.Table is null?null:TableContent.Copy(item.Table), RoundedFrame=item.RoundedFrame, Text = item.Text, FileName = item.FileName,
         Left = item.Left, Top = item.Top, Width = item.Width, Height = item.Height,
         Rotation = item.Rotation, FontSize = item.FontSize, CreatedAt = item.CreatedAt, DeletedAt = item.DeletedAt
     };
@@ -31,7 +31,7 @@ public sealed partial class WorkspaceStore
         foreach(var item in changed)
         {
             var existing=items.SingleOrDefault(i=>i.Id==item.Id);
-            if(existing is null&&item.Kind!="text"&&!IsVisionShape(item.Kind)||existing is not null&&(item.Kind!=existing.Kind||item.FileName!=existing.FileName))
+            if(existing is null&&item.Kind is not ("text" or "table")&&!IsVisionShape(item.Kind)||existing is not null&&(item.Kind!=existing.Kind||item.FileName!=existing.FileName))
                 throw new ArgumentException("Object type and image ownership cannot change during a canvas edit.");
             if(existing is not null)items.Remove(existing);items.Add(CopyVision(item));
         }
@@ -102,7 +102,8 @@ public sealed partial class WorkspaceStore
         foreach (var board in collections)
         foreach (var item in board.Items)
         {
-            if (item is null || item.RoundedFrame&&(item.Kind!="text"||state.Version<7) || item.Id == Guid.Empty || !ids.Add(item.Id) || item.Kind is not ("text" or "image") && !IsVisionShape(item.Kind) ||
+            if(item?.Kind=="table"){if(state.Version<8||item.Table is null||item.FileName is not null)throw new InvalidDataException("Invalid table object.");TableContent.Validate(item.Table);}else if(item?.Table is not null)throw new InvalidDataException("Unexpected table content.");
+            if (item is null || item.RoundedFrame&&(item.Kind!="text"||state.Version<7) || item.Id == Guid.Empty || !ids.Add(item.Id) || item.Kind is not ("text" or "image" or "table") && !IsVisionShape(item.Kind) ||
                 IsVisionShape(item.Kind) && (state.Version < 6 || item.FileName is not null || item.Text != "") ||
                 item.Text is null || item.Text.Length > 20000 || item.Kind == "text" && (string.IsNullOrWhiteSpace(item.Text) || item.FileName is not null) ||
                 item.Kind == "image" && (item.FileName is null || !Regex.IsMatch(item.FileName,

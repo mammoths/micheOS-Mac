@@ -88,7 +88,7 @@ try
     using (var store = new WorkspaceStore(upgraded))
     {
         var state = store.Snapshot;
-        Check(state.Version == 7 && state.DumpSpaces is null && state.Widgets.Count == 1, "Upgrade lost widget visibility");
+        Check(state.Version == 8 && state.DumpSpaces is null && state.Widgets.Count == 1, "Upgrade lost widget visibility");
         Check(!state.Widgets.Any(w => w.MicheId == legacyHome.Id), "Upgrade added widget to blank home");
         Check(state.RootDump.Single().Id == legacyCapture.Id && state.Trash.Single().Miche.Id == legacyRemoved.Id,
             "Upgrade changed capture or trash identity");
@@ -161,7 +161,7 @@ try
     var v2Text = JsonSerializer.Serialize(v2); var v2Path = Path.Combine(v2Directory,"workspace.json"); File.WriteAllText(v2Path,v2Text);
     using (var store = new WorkspaceStore(v2Directory))
     {
-        Check(store.Snapshot.Version == 7 && store.Snapshot.Widgets.Single().Id == widgetId && store.Snapshot.VisionBoards.Count == 0,
+        Check(store.Snapshot.Version == 8 && store.Snapshot.Widgets.Single().Id == widgetId && store.Snapshot.VisionBoards.Count == 0,
             "Vision upgrade changed widgets or added fake boards");
         Check(File.ReadAllText(Directory.GetFiles(Path.Combine(v2Directory,"backups"),"before-v3-*.json").Single()) == v2Text,
             "Vision upgrade didn't preserve exact v2 bytes");
@@ -264,7 +264,7 @@ try
     var v4=JsonSerializer.Deserialize<Workspace>(File.ReadAllText(Path.Combine(scopes,"workspace.json")))!;v4.Version=4;
     var v4Bytes=JsonSerializer.Serialize(v4);File.WriteAllText(Path.Combine(v4Directory,"workspace.json"),v4Bytes);
     using(var store=new WorkspaceStore(v4Directory))
-        Check(store.Snapshot.Version==7 && store.Snapshot.VisionArtifacts.Count==0 && File.ReadAllText(Directory.GetFiles(Path.Combine(v4Directory,"backups"),"before-v5-*.json").Single())==v4Bytes &&
+        Check(store.Snapshot.Version==8 && store.Snapshot.VisionArtifacts.Count==0 && File.ReadAllText(Directory.GetFiles(Path.Combine(v4Directory,"backups"),"before-v5-*.json").Single())==v4Bytes &&
             store.Snapshot.Widgets.Single().LocalEditor.Text=="local draft", "Past visions migration didn't preserve exact v4/scoped drafts");
     // A blocked migration commit must retain the original version-1 file.
     var failedUpgrade = Path.Combine(root, "failed-upgrade");
@@ -303,7 +303,7 @@ try
     var v5=new Workspace();v5.Index.RootMicheId=Guid.NewGuid();v5.Index.ActiveMicheId=v5.Index.RootMicheId;
     v5.Index.Miches.Add(new Miche.Mac.Models.Miche {Id=v5.Index.RootMicheId,Name="home"});v5.Version=5;
     var exact=JsonSerializer.Serialize(v5);File.WriteAllText(Path.Combine(migrationRoot,"workspace.json"),exact);
-    using(var store=new WorkspaceStore(migrationRoot))Check(store.Snapshot.Version==7&&File.ReadAllText(Directory.GetFiles(Path.Combine(migrationRoot,"backups"),"before-v6-*.json").Single())==exact,"Schema 6 migration lost exact original backup");
+    using(var store=new WorkspaceStore(migrationRoot))Check(store.Snapshot.Version==8&&File.ReadAllText(Directory.GetFiles(Path.Combine(migrationRoot,"backups"),"before-v6-*.json").Single())==exact,"Schema 6 migration lost exact original backup");
     var clipRoot=Path.Combine(root,"clipboard");Guid resumeId;
     var originalFile=Path.Combine(root,"synthetic-resume.pdf");File.WriteAllText(originalFile,"synthetic PDF fixture");
     using(var store=new WorkspaceStore(clipRoot))
@@ -338,7 +338,17 @@ try
     var v6Root=Path.Combine(root,"v6-to-v7");Directory.CreateDirectory(v6Root);
     var v6=new Workspace {Version=6};v6.Index.RootMicheId=Guid.NewGuid();v6.Index.ActiveMicheId=v6.Index.RootMicheId;v6.Index.Miches.Add(new Miche.Mac.Models.Miche {Id=v6.Index.RootMicheId,Name="home"});
     var v6Bytes=JsonSerializer.Serialize(v6);File.WriteAllText(Path.Combine(v6Root,"workspace.json"),v6Bytes);
-    using(var store=new WorkspaceStore(v6Root))Check(store.Snapshot.Version==7&&File.ReadAllText(Directory.GetFiles(Path.Combine(v6Root,"backups"),"before-v7-*.json").Single())==v6Bytes,"Schema 7 lost exact original backup");
+    using(var store=new WorkspaceStore(v6Root))Check(store.Snapshot.Version==8&&File.ReadAllText(Directory.GetFiles(Path.Combine(v6Root,"backups"),"before-v7-*.json").Single())==v6Bytes,"Schema 7 lost exact original backup");
+    var tableRoot=Path.Combine(root,"table-v8");Directory.CreateDirectory(tableRoot);
+    var v7=new Workspace{Version=7};v7.Index.RootMicheId=Guid.NewGuid();v7.Index.ActiveMicheId=v7.Index.RootMicheId;v7.Index.Miches.Add(new Miche.Mac.Models.Miche{Id=v7.Index.RootMicheId,Name="home"});
+    var v7Original=JsonSerializer.Serialize(v7);File.WriteAllText(Path.Combine(tableRoot,"workspace.json"),v7Original);
+    using(var store=new WorkspaceStore(tableRoot))
+    {
+        Check(store.Snapshot.Version==8&&File.ReadAllText(Directory.GetFiles(Path.Combine(tableRoot,"backups"),"before-v8-*.json").Single())==v7Original,"Table migration lost original backup");
+        var table=TableContent.Create();table.Cells[0][0].Add(new PageRun{Text="Monday"});var item=new VisionItem{Kind="table",Table=table,Width=360,Height=188};store.SaveVisionItem(v7.Index.RootMicheId,item);
+        var copy=WorkspaceStore.CopyVision(item);copy.Table!.Cells[0][0][0].Text="changed";Check(item.Table.Cells[0][0][0].Text=="Monday","Table clone shared mutable cells");
+        var bytes=File.ReadAllBytes(store.FilePath);copy.Table.ColumnWidths=new(){double.NaN,120,120};Reject<InvalidDataException>(()=>store.SaveVisionItem(v7.Index.RootMicheId,copy));Check(File.ReadAllBytes(store.FilePath).SequenceEqual(bytes),"Invalid table overwrote saved state");
+    }
     Console.WriteLine($"PASS: {checks} persistence, recovery, isolation and failure checks. Synthetic data only.");
 }
 finally { Directory.Delete(root, true); }

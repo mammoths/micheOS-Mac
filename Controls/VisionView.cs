@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.VisualTree;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -42,6 +43,7 @@ public sealed partial class VisionView : UserControl, IDisposable
         Focusable = true; Background = Brush.Parse("#241B2D"); Content = _root;
         var bar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12,8) };
         bar.Children.Add(_caption);
+        AddButton(bar, "table +",()=>AddTable(VisibleInsertionPoint));
         AddButton(bar, "image +", async () => await PickImage(VisibleInsertionPoint));
         _shapeButton=AddButton(bar, "shape +", () => ShowShapes(VisibleInsertionPoint));
         _root.Children.Add(_shapePicker);
@@ -123,6 +125,7 @@ public sealed partial class VisionView : UserControl, IDisposable
         Control content;
         if (item.Kind == "text") content = new TextBlock { Text = item.Text, FontFamily = new FontFamily("Georgia"), FontSize = item.FontSize,
             Foreground = Brush.Parse("#F4E5D1"), TextWrapping = TextWrapping.Wrap };
+        else if(item.Kind=="table")content=MakeTable(item);
         else if (WorkspaceStore.IsVisionShape(item.Kind)) content = new VisionPrimitive(item.Kind);
         else
         {
@@ -146,6 +149,7 @@ public sealed partial class VisionView : UserControl, IDisposable
         remove.Click += (_, _) => Delete(item.Id); border.ContextMenu.Items.Add(remove);
         if (item.Kind == "text") { var edit = new MenuItem { Header = "edit text" }; edit.Click += (_, _) => BeginText(new Point(item.Left,item.Top),item); border.ContextMenu.Items.Add(edit); }
         border.PointerPressed += (_, e) => {
+            if(item.Kind=="table"&&e.Source is Control cell&&cell.GetVisualAncestors().Any(v=>v is TableView))return;
             if(_dialogBorder.IsVisible) {e.Handled=true;return;}
             if (!e.GetCurrentPoint(_canvas).Properties.IsLeftButtonPressed) return;
             if (_editor is not null && !CommitDraft()) { e.Handled = true; return; }
@@ -195,7 +199,7 @@ public sealed partial class VisionView : UserControl, IDisposable
             var menu = new ContextMenu { Background = Brush.Parse("#2C2033") };
             var text = new MenuItem { Header = "write here" }; text.Click += (_,_) => BeginText(point);
             var image = new MenuItem { Header = "image here" }; image.Click += async (_,_) => await PickImage(point);
-            menu.Items.Add(text); menu.Items.Add(image); AddShapeMenuItems(menu,point); _canvas.ContextMenu = menu; menu.Open(_canvas); e.Handled = true;
+            var table=new MenuItem{Header="table here"};table.Click+=(_,_)=>AddTable(point);menu.Items.Add(table);menu.Items.Add(text); menu.Items.Add(image); AddShapeMenuItems(menu,point); _canvas.ContextMenu = menu; menu.Open(_canvas); e.Handled = true;
         }
         else if (e.GetCurrentPoint(_canvas).Properties.IsLeftButtonPressed) { BeginMarquee(e); e.Handled = true; }
     }
@@ -341,6 +345,7 @@ public sealed partial class VisionView : UserControl, IDisposable
             if (max < min) { e.Handled = true; return; }
             factor = Math.Clamp(factor, min, max);
             item.Width *= factor; item.Height *= factor;
+            if(item.Kind=="table")ScaleTable(item,factor);
             if (item.Kind == "text") item.FontSize *= factor;
             }
         }
@@ -374,6 +379,7 @@ public sealed partial class VisionView : UserControl, IDisposable
     {
         if(_dialogBorder.IsVisible)
         { if(e.Key==Key.Escape) {CloseDialog(); _canvas.Focus(); e.Handled=true;} return; }
+        if(e.Source is Control tableCell&&tableCell.GetVisualAncestors().Any(v=>v is TableView)){if(e.Key==Key.Escape)_canvas.Focus();return;}
         HandleVisionClipboardKey(e);if(e.Handled)return;
         if (HandleSelectionSizeKey(e)||HandleZoomKey(e)) return;
         if (e.Key == Key.Escape) { if (!Escape()) CloseRequested?.Invoke(); e.Handled = true; }

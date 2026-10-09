@@ -51,7 +51,7 @@ public sealed class ArchivedMiche
 // Mac-only envelope; no compatibility or Windows import is implied.
 public sealed class Workspace
 {
-    public int Version { get; set; } = 7;
+    public int Version { get; set; } = 8;
     public ClipboardShelf Clipboard { get; set; } = new();
     public MicheIndex Index { get; set; } = new();
     public List<ArchivedMiche> Trash { get; set; } = new();
@@ -115,6 +115,7 @@ public sealed class VisionItem
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Kind { get; set; } = "text";
+    public PageBlock? Table { get; set; }
     public bool RoundedFrame { get; set; }
     public string Text { get; set; } = "";
     public string? FileName { get; set; }

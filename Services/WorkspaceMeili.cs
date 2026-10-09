@@ -12,7 +12,7 @@ public sealed partial class WorkspaceSession
         if(_meiliWindow is null)
         {
             _meiliWindow=new MeiliWindow(Store.DirectoryPath);
-            _meiliWindow.Closed+=(_,_)=>{_meiliWindow=null;_meiliQuitApproved=false;if(!IsQuitting&&_home?.IsVisible!=true&&_floating.Count==0&&_flowWindow?.IsVisible!=true)Dispatcher.UIThread.Post(()=>{if(!TryQuit())OpenHome();});};
+            _meiliWindow.Closed+=(_,_)=>{_meiliWindow=null;_meiliQuitApproved=false;if(!IsQuitting&&_home?.IsVisible!=true&&_pageWindows.Count==0&&_floating.Count==0&&_flowWindow?.IsVisible!=true)Dispatcher.UIThread.Post(()=>{if(!TryQuit())OpenHome();});};
         }
         if(_meiliWindow.WindowState==WindowState.Minimized)_meiliWindow.WindowState=WindowState.Normal;
         _meiliWindow.Show();_meiliWindow.Activate();

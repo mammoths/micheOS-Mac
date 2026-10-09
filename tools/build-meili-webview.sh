@@ -7,4 +7,4 @@ if [ -z "${MICHE_MAC_SDK:-}" ] && [ -d /Library/Developer/CommandLineTools/SDKs/
   MEILI_SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
 fi
 clang -isysroot "$MEILI_SDK" -dynamiclib -fobjc-arc -framework AppKit -framework WebKit \
-  -mmacosx-version-min=13.0 "$PROJECT_DIR/native/meili-webview.m" -o "$PROJECT_DIR/native/libmeili-webview.dylib"
+  -mmacosx-version-min=13.0 "$PROJECT_DIR/native/meili-webview.m" "$PROJECT_DIR/native/page-webview.m" -o "$PROJECT_DIR/native/libmeili-webview.dylib"

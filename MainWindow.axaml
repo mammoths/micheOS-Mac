@@ -29,7 +29,7 @@
       </Grid>
     </Border>
     <Grid Grid.Row="1" Margin="8,12,8,32">
-      <Grid x:Name="Board" RowDefinitions="Auto,*">
+      <Grid x:Name="Board" RowDefinitions="Auto,*" Background="Transparent">
         <StackPanel x:Name="CompactHeader" IsVisible="False" HorizontalAlignment="Center" Margin="0,0,0,18">
           <controls:Wordmark Width="145" />
           <TextBlock Text="a little space for today" FontFamily="Menlo" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" />
@@ -55,6 +55,8 @@
                 <Button x:Name="GroundSuggestion" Content="Dumping Ground · all captures" Click="AddDump" HorizontalAlignment="Stretch" />
                 <Button x:Name="LocalSuggestion" Content="Dump · this Miche" Click="AddLocalDump" HorizontalAlignment="Stretch" />
                 <Button x:Name="MeiliSuggestion" Content="The Daily Meili · production studio" Click="OpenMeili" HorizontalAlignment="Stretch" />
+                <Button Content="Table · standalone" Click="AddTablePage" HorizontalAlignment="Stretch" />
+        <Button Content="Blank page · write, images &amp; tables" Click="AddPage" HorizontalAlignment="Stretch" />
                 <Button x:Name="ClipboardSuggestion" Content="Clipboard · links &amp; files" Click="OpenClipboard" HorizontalAlignment="Stretch" />
                 <Button x:Name="FlowSuggestion" Content="Flow · local time blocks" Click="OpenFlow" HorizontalAlignment="Stretch" />
                 <TextBlock x:Name="LookupHint" Text="one shared inbox for your thoughts" Classes="meta" Margin="8,4" TextWrapping="Wrap" />
@@ -65,6 +67,7 @@
         <ScrollViewer x:Name="DeskScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Spacing="20">
           <ContentControl x:Name="ClipboardHost" MaxWidth="380" HorizontalContentAlignment="Stretch" />
+          <controls:PageDesk x:Name="PagesDesk" />
           <controls:WidgetDesk x:Name="DeskPanel" AutomationProperties.Name="Widget desk: Option arrows move, Option Shift arrows resize">
             <ContentControl x:Name="DumpHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
           </controls:WidgetDesk>
@@ -122,6 +125,8 @@
         <Button x:Name="CommandGroundSuggestion" Content="Dumping Ground · all captures" Click="AddDump" HorizontalAlignment="Stretch" />
         <Button x:Name="CommandLocalSuggestion" Content="Dump · this Miche" Click="AddLocalDump" HorizontalAlignment="Stretch" />
         <Button x:Name="CommandMeiliSuggestion" Content="The Daily Meili · production studio" Click="OpenMeili" HorizontalAlignment="Stretch" />
+        <Button Content="Table · standalone" Click="AddTablePage" HorizontalAlignment="Stretch" />
+        <Button Content="Blank page · write, images &amp; tables" Click="AddPage" HorizontalAlignment="Stretch" />
         <Button x:Name="CommandClipboardSuggestion" Content="Clipboard · links &amp; files" Click="OpenClipboard" HorizontalAlignment="Stretch" />
         <Button x:Name="CommandFlowSuggestion" Content="Flow · local time blocks" Click="OpenFlow" HorizontalAlignment="Stretch" />
         <TextBlock x:Name="CommandHint" Classes="meta" TextWrapping="Wrap" />
