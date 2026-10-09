@@ -23,7 +23,7 @@ public sealed partial class VisionView
         {
             var copy=JsonSerializer.Deserialize<VisionCopy>(text[VisionClipboardPrefix.Length..]);if(copy is null||copy.Items is null||copy.Items.Length is <1 or >1000)return false;
             Guid[] ids=Array.Empty<Guid>();
-            if(!_session!.Act(()=>ids=_session.Store.PasteVisionItems(_micheId,copy.WorkspaceId,copy.MicheId,copy.Items,_artifactId)))return false;
+            if(!_session!.Act(()=>ids=CalendarMode?_session.Store.PasteCalendarItems(_calendarMonth!,_calendarDate,copy.WorkspaceId,copy.Items):_session.Store.PasteVisionItems(_micheId,copy.WorkspaceId,copy.MicheId,copy.Items,_artifactId)))return false;
             _selection.Clear();_selection.UnionWith(ids);_selected=ids.FirstOrDefault();RefreshBoard();_canvas.Focus();return true;
         }
         catch(JsonException){_message.Text="Couldn’t read those Vision objects.";return false;}

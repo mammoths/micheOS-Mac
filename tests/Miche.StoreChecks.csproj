@@ -6,14 +6,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="ui/**/*.cs;flow/**/*.cs" />
+    <Compile Remove="ui/**/*.cs;flow/**/*.cs;geometry/**/*.cs" />
     <Compile Include="../Models/ClipboardModels.cs" Link="Models/ClipboardModels.cs" />
     <Compile Include="../Services/TableContent.cs" Link="Services/TableContent.cs" />
     <Compile Include="../Services/ClipboardStore.cs" Link="Services/ClipboardStore.cs" />
     <Compile Include="../Models/PageModels.cs" Link="Models/PageModels.cs" />
     <Compile Include="../Models/Miche.cs" Link="Models/Miche.cs" />
+    <Compile Include="../Models/CalendarModels.cs" Link="Models/CalendarModels.cs" />
+    <Compile Include="../Services/CalendarStore.cs" Link="Services/CalendarStore.cs" />
     <Compile Include="../Services/VisionPaste.cs" Link="Services/VisionPaste.cs" />
     <Compile Include="../Services/VisionStore.cs" Link="Services/VisionStore.cs" />
+    <Compile Include="../Services/VisionConnections.cs" Link="Services/VisionConnections.cs" />
     <Compile Include="../Services/WorkspaceStore.cs" Link="Services/WorkspaceStore.cs" />
     <Compile Include="../Services/DumpScopes.cs" Link="Services/DumpScopes.cs" />
     <Compile Include="../Services/PastVisions.cs" Link="Services/PastVisions.cs" />

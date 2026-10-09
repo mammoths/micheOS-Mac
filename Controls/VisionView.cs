@@ -30,6 +30,7 @@ public sealed partial class VisionView : UserControl, IDisposable
     private VisionItem? _editing;
     private bool _committing;
     private CanvasGesture? _gesture;
+    private WrapPanel _bar = null!;
     private sealed record CanvasGesture(VisionItem Before, Point Start, IPointer Pointer, bool Resize)
     { public VisionItem Preview { get; set; } = WorkspaceStore.CopyVision(Before); public bool Started { get; set; } }
     public Canvas BoardCanvas => _canvas;
@@ -41,7 +42,7 @@ public sealed partial class VisionView : UserControl, IDisposable
     public VisionView()
     {
         Focusable = true; Background = Brush.Parse("#241B2D"); Content = _root;
-        var bar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12,8) };
+        var bar = _bar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12,8) };
         bar.Children.Add(_caption);
         AddButton(bar, "table +",()=>AddTable(VisibleInsertionPoint));
         AddButton(bar, "image +", async () => await PickImage(VisibleInsertionPoint));
@@ -53,6 +54,7 @@ public sealed partial class VisionView : UserControl, IDisposable
         _root.Children.Add(bar); Grid.SetRow(_scroll,1); _root.Children.Add(_scroll); InitializeZoom();
         Grid.SetRow(_tools,2);_tools.Margin=new Thickness(8,4);_tools.VerticalAlignment=VerticalAlignment.Center;_root.Children.Add(_tools);
         InitializeLifecycle(bar);
+        InitializeMicheMentions();
         ScrollViewer.SetBringIntoViewOnFocusChange(_canvas,false);
         _scroll.SizeChanged += (_, _) => UpdateExtent();
         _canvas.PointerPressed += BlankPressed;
@@ -73,7 +75,7 @@ public sealed partial class VisionView : UserControl, IDisposable
     { var button = new Button { Content = text, FontSize = 11, Margin = new Thickness(4,2) }; button.Click += (_, _) => action(); parent.Children.Add(button); return button; }
     public void Connect(WorkspaceSession session)
     {
-        _session = session; _micheId = session.Store.Snapshot.Index.ActiveMicheId;
+        _session = session; _micheId = CalendarMode ? session.Store.Snapshot.Index.RootMicheId : session.Store.Snapshot.Index.ActiveMicheId;
         session.Changed += DataChanged;
         session.ErrorOccurred += Error;
         RefreshBoard();
@@ -82,6 +84,7 @@ public sealed partial class VisionView : UserControl, IDisposable
     private void DataChanged()
     {
         if (_committing || HasCanvasGesture) return;
+        if(CalendarMode){RefreshBoard();return;}
         var active = _session!.Store.Snapshot.Index.ActiveMicheId;
         if (_micheId != active)
         {
@@ -94,11 +97,15 @@ public sealed partial class VisionView : UserControl, IDisposable
     private List<VisionItem> Items()
     {
         var state=_session?.Store.Snapshot;
+        if(CalendarMode)return state?.Calendar.Items.Where(i=>i.Month==_calendarMonth&&i.Date==_calendarDate).Select(i=>WorkspaceStore.CopyVision(i.Content)).ToList()??new();
         return (_artifactId is { } id ? state?.VisionArtifacts.SingleOrDefault(a=>a.Id==id && a.MicheId==_micheId)?.Items : state?.VisionBoards.SingleOrDefault(b=>b.MicheId==_micheId)?.Items) ?? new();
     }
     public void RefreshBoard()
     {
         if (_session is null || HasCanvasGesture) return;
+        if(!CalendarMode)
+        {var miche=_session.Store.Snapshot.Index.Miches.SingleOrDefault(m=>m.Id==_micheId);if(miche is not null)Background=Brush.Parse(MichePalette.For(miche).Surface);}
+        StyleLinkedEditor();
         var liveIds=Items().Where(i=>i.DeletedAt is null).Select(i=>i.Id).ToHashSet();_selection.RemoveWhere(id=>!liveIds.Contains(id));if(_selected is { } selected&&!liveIds.Contains(selected))_selected=null;
         foreach (var child in _canvas.Children.ToArray()) if (!ReferenceEquals(child,_editor)) _canvas.Children.Remove(child);
         _objects.Clear();
@@ -111,6 +118,7 @@ public sealed partial class VisionView : UserControl, IDisposable
         if (_editor is not null && !_canvas.Children.Contains(_editor)) _canvas.Children.Add(_editor);
         _canvas.Height = Math.Max(1600, items.Select(i => i.Top + i.Height + 160).DefaultIfEmpty(0).Max());
         UpdateExtent();
+        RefreshConnections();
         RefreshTools();
         RefreshLifecycle();
     }
@@ -124,21 +132,23 @@ public sealed partial class VisionView : UserControl, IDisposable
     {
         Control content;
         if (item.Kind == "text") content = new TextBlock { Text = item.Text, FontFamily = new FontFamily("Georgia"), FontSize = item.FontSize,
-            Foreground = Brush.Parse("#F4E5D1"), TextWrapping = TextWrapping.Wrap };
+            Foreground = CanvasInk, TextWrapping = TextWrapping.Wrap };
         else if(item.Kind=="table")content=MakeTable(item);
-        else if (WorkspaceStore.IsVisionShape(item.Kind)) content = new VisionPrimitive(item.Kind);
+        else if (WorkspaceStore.IsVisionShape(item.Kind)) content = new VisionPrimitive(item.Kind,CanvasInk);
         else
         {
             try
             {
                 if (!_images.TryGetValue(item.FileName!, out var bitmap))
-                { bitmap = new Bitmap(_session!.Store.VisionAssetPath(_micheId,item.FileName!)); _images.Add(item.FileName!,bitmap); }
+                { bitmap = new Bitmap(_session!.Store.VisionAssetPath(AssetOwner(item),item.FileName!)); _images.Add(item.FileName!,bitmap); }
                 content = new Image { Source = bitmap, Stretch = Stretch.Uniform };
             }
             catch (Exception e) when (e is IOException or ArgumentException or UnauthorizedAccessException)
             { content = new TextBlock { Text = "image unavailable", Foreground = Brush.Parse("#BEA8B9") }; }
         }
-        if(item.Kind=="text"&&item.RoundedFrame)content=new Border {Padding=new Thickness(8,5),CornerRadius=new CornerRadius(12),Background=Brush.Parse("#392B40"),BorderBrush=Brush.Parse("#BEA8B9"),BorderThickness=new Thickness(1),Child=content};
+        if(item.Kind=="text"&&item.LinkedMicheId is { } linked)content=LinkedNote(linked,content);
+        else if(item.Kind=="text"&&item.RoundedFrame)content=new Border {Padding=new Thickness(8,5),CornerRadius=new CornerRadius(12),Background=Brush.Parse(CalendarMode?"#EDE5D6":"#392B40"),BorderBrush=CanvasMuted,BorderThickness=new Thickness(1),Child=content};
+        if(item.Kind=="text"){content=NotePresentation.Decorate(content,item.NoteShape,CanvasInk);if(item.NoteShape is not null)content.HorizontalAlignment=HorizontalAlignment.Stretch;}
         var layer = new Grid(); layer.Children.Add(content);
         var border = new Border { Background = Brushes.Transparent, BorderBrush = Brush.Parse("#DFA6AD"),
             BorderThickness = new Thickness(IsSelected(item.Id) ? 1 : 0), Child = layer };
@@ -148,7 +158,9 @@ public sealed partial class VisionView : UserControl, IDisposable
         var remove = new MenuItem { Header = "move to recently deleted" };
         remove.Click += (_, _) => Delete(item.Id); border.ContextMenu.Items.Add(remove);
         if (item.Kind == "text") { var edit = new MenuItem { Header = "edit text" }; edit.Click += (_, _) => BeginText(new Point(item.Left,item.Top),item); border.ContextMenu.Items.Add(edit); }
+        var plan=new MenuItem{Header=CalendarMode?"move to another day…":"plan on calendar…"};plan.Click+=(_,_)=>ShowPlanItem(item.Id);border.ContextMenu.Items.Add(plan);
         border.PointerPressed += (_, e) => {
+            if(e.Source is Control button&&(button is Button||button.GetVisualAncestors().Any(v=>v is Button)))return;
             if(item.Kind=="table"&&e.Source is Control cell&&cell.GetVisualAncestors().Any(v=>v is TableView))return;
             if(_dialogBorder.IsVisible) {e.Handled=true;return;}
             if (!e.GetCurrentPoint(_canvas).Properties.IsLeftButtonPressed) return;
@@ -165,6 +177,8 @@ public sealed partial class VisionView : UserControl, IDisposable
             layer.Children.Add(grip);
             grip.PointerPressed += (_,e) => { if (e.GetCurrentPoint(_canvas).Properties.IsLeftButtonPressed) { BeginGesture(item,e,resize:true); e.Handled = true; } };
         }
+        AddConnectionMenu(item,layer,border);
+        border.AddHandler(PointerPressedEvent,(_,e)=>{if(_connectingFrom is not null&&e.GetCurrentPoint(_canvas).Properties.IsLeftButtonPressed&&TryConnectionTarget(item.Id))e.Handled=true;},RoutingStrategies.Tunnel);
         return border;
     }
     private static void Position(Control control, VisionItem item)
@@ -182,9 +196,13 @@ public sealed partial class VisionView : UserControl, IDisposable
     private void RefreshTools()
     {
         _tools.Children.Clear();
+        if(_selectedConnection is { } edge){AddButton(_tools,"remove connection",()=>DisconnectObjects(edge.Source,edge.Target));return;}
         if(SelectedIds.Count>1){_tools.Children.Add(new TextBlock {Text=$"{SelectedIds.Count} selected",FontSize=11,VerticalAlignment=VerticalAlignment.Center});return;}
         if (_selected is not { } id || Items().SingleOrDefault(i => i.Id == id && i.DeletedAt is null) is not { } item) return;
+        if(CalendarMode){if(item.Kind=="text")AddButton(_tools,"edit",()=>BeginText(new Point(item.Left,item.Top),item));AddButton(_tools,"day…",()=>ShowPlanItem(id));AddButton(_tools,"delete",()=>Delete(id));return;}
+        AddButton(_tools,"connect",()=>BeginConnection(id));
         if (item.Kind == "text") {AddButton(_tools,"edit", () => BeginText(new Point(item.Left,item.Top),item));AddButton(_tools,item.RoundedFrame?"unbox":"round box",()=>ToggleTextFrame(id));}
+        AddButton(_tools,CalendarMode?"day…":"calendar…",()=>ShowPlanItem(id));
         AddButton(_tools,"↶ 5°", () => Rotate(id,-5)); AddButton(_tools,"↷ 5°", () => Rotate(id,5));
         AddButton(_tools,"delete", () => Delete(id));
     }
@@ -192,7 +210,9 @@ public sealed partial class VisionView : UserControl, IDisposable
     {
         if (!ReferenceEquals(e.Source,_canvas)) return;
         if(_dialogBorder.IsVisible) {e.Handled=true;return;}
+        if(_connectingFrom is not null){CancelConnection();e.Handled=true;return;}
         if (_editor is not null && !CommitDraft()) { e.Handled = true; return; }
+        if(SelectConnectionAt(e))return;
         var point = e.GetPosition(_canvas);
         if (e.GetCurrentPoint(_canvas).Properties.IsRightButtonPressed)
         {
@@ -210,13 +230,14 @@ public sealed partial class VisionView : UserControl, IDisposable
         _editing = existing is null ? new VisionItem { Left = Math.Clamp(point.X,0,Math.Max(0,_canvas.Width-280)), Top = Math.Clamp(point.Y,0,10000) }
             : WorkspaceStore.CopyVision(existing);
         _editor = new TextBox { Text = _editing.Text, FontFamily = new FontFamily("Georgia"), FontSize = _editing.FontSize,
-            Foreground = Brush.Parse("#F4E5D1"), BorderThickness = new Thickness(0), Background = Brushes.Transparent,
+            Foreground = CanvasInk, BorderThickness = new Thickness(0), Background = Brushes.Transparent,
             Padding = new Thickness(0), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxLength = 20000,
             Width = _editing.Width, MinHeight = Math.Max(60,_editing.Height), MaxHeight = 4000 };
         Canvas.SetLeft(_editor,_editing.Left); Canvas.SetTop(_editor,_editing.Top);
-        _editor.TextChanged+=(_,_)=>FitTextDraft();
+        _editor.TextChanged+=(_,_)=>{FitTextDraft();UpdateMicheMentions();};
+        StyleLinkedEditor();
         FitTextDraft();
-        _editor.LostFocus += (_,_) => { if (!_committing && _editor is not null) CommitDraft(); };
+        _editor.LostFocus += (_,_) => { if (!_committing && !_mentionPicker.IsOpen && _editor is not null) CommitDraft(); };
         RefreshBoard(); Dispatcher.UIThread.Post(() => { _editor?.Focus(); if (_editor is not null) _editor.CaretIndex = _editor.Text?.Length ?? 0; });
     }
     public bool ToggleTextFrame(Guid id)
@@ -224,10 +245,8 @@ public sealed partial class VisionView : UserControl, IDisposable
         if(!PrepareToLeave())return false;
         var item=Items().SingleOrDefault(i=>i.Id==id&&i.Kind=="text"&&i.DeletedAt is null);if(item is null)return false;
         item=WorkspaceStore.CopyVision(item);item.RoundedFrame=!item.RoundedFrame;
-        var measure=new TextBlock {Text=item.Text,FontFamily=new FontFamily("Georgia"),FontSize=item.FontSize,TextWrapping=TextWrapping.Wrap};
-        measure.Measure(new Size(Math.Max(280,item.Width),double.PositiveInfinity));
-        item.Width=Math.Clamp(measure.DesiredSize.Width+(item.RoundedFrame?20:2),8,4000);item.Height=Math.Clamp(measure.DesiredSize.Height+(item.RoundedFrame?14:2),8,4000);
-        return _session!.Act(()=>_session.Store.SaveVisionItem(_micheId,item,_artifactId));
+        NotePresentation.Fit(item);
+        return SaveCanvasItems(new[]{item});
     }
     private void FitTextDraft()
     {
@@ -237,41 +256,42 @@ public sealed partial class VisionView : UserControl, IDisposable
         _editor.Width=string.IsNullOrEmpty(_editor.Text)?140:Math.Clamp(measure.DesiredSize.Width+4,8,4000);
         _editor.MinHeight=Math.Clamp(measure.DesiredSize.Height+2,24,4000);
     }
-    public bool CommitDraft()
+    public bool CommitDraft(bool allowEmptyMention = false)
     {
         if (_editor is null || _editing is null || _committing) return true;
-        var text = (_editor.Text ?? "").Trim();
+        if(TryResolveMicheMention()&&string.IsNullOrWhiteSpace(_editor?.Text)){if(!allowEmptyMention)CancelDraft();return true;}
+        var text = (_editor?.Text ?? "").Trim();
         if (text.Length == 0) { CancelDraft(); return true; }
         var item = WorkspaceStore.CopyVision(_editing); item.Text = text;
-        var measure = new TextBlock { Text = text, FontFamily = new FontFamily("Georgia"), FontSize = item.FontSize, TextWrapping = TextWrapping.Wrap };
-        measure.Measure(new Size(Math.Max(280,_editing.Width)-(item.RoundedFrame?18:0),double.PositiveInfinity)); item.Width=Math.Clamp(measure.DesiredSize.Width+(item.RoundedFrame?20:2),8,4000); item.Height = Math.Clamp(measure.DesiredSize.Height + (item.RoundedFrame?14:2),8,4000);
+        NotePresentation.Fit(item);
         _committing = true;
         try
         {
-            if (!_session!.Act(() => _session.Store.SaveVisionItem(_micheId,item,_artifactId))) return false;
+            if (!SaveCanvasItems(new[]{item})) return false;
             _message.Text = "";
             _editor = null; _editing = null; _selection.Clear(); _selected = item.Id; RefreshBoard(); _canvas.Focus(); return true;
         }
         finally { _committing = false; }
     }
-    public void CancelDraft() { _editor = null; _editing = null; RefreshBoard(); _canvas.Focus(); }
-    public bool PrepareToLeave() { CancelGesture(); return CommitDraft(); }
+    public void CancelDraft() { _mentionPicker.IsOpen=false; _editor = null; _editing = null; RefreshBoard(); _canvas.Focus(); }
+    internal void ClearSaveError()=>_message.Text="";
+    public bool PrepareToLeave() { CancelConnection(); CancelGesture(); return CommitDraft(); }
     public void Rotate(Guid id, double degrees)
     {
         if (!CommitDraft()) return;
         var item = Items().Single(i => i.Id == id); item.Rotation = (item.Rotation + degrees + 540) % 360 - 180;
-        _session!.Act(() => _session.Store.SaveVisionItem(_micheId,item,_artifactId));
+        SaveCanvasItems(new[]{item});
     }
     public void Delete(Guid id)
     {
         if (!CommitDraft()) return;
-        _session!.Act(() => _session.Store.SetVisionDeleted(_micheId,id,true,_artifactId), "Vision object moved to recently deleted.");
+        _session!.Act(() => {if(CalendarMode)_session.Store.SetCalendarDeleted(id,true);else _session.Store.SetVisionDeleted(_micheId,id,true,_artifactId);}, "Object moved to recently deleted.");
         _selected = null; _selection.Clear(); RefreshBoard();
     }
     public bool ImportImage(string source, Point point)
     {
         if (!CommitDraft()) return false;
-        var saved = _session!.Act(() => { var id = VisionImages.Import(_session.Store,_micheId,source,point.X,point.Y,_artifactId); _selection.Clear(); _selected = id; RefreshBoard(); }, "Image added to this Vision.");
+        var saved = _session!.Act(() => { var id = VisionImages.Import(_session.Store,_micheId,source,point.X,point.Y,_artifactId,_calendarMonth,_calendarDate); _selection.Clear(); _selected = id; RefreshBoard(); }, "Image added.");
         if (saved) _message.Text = "";
         return saved;
     }
@@ -280,6 +300,7 @@ public sealed partial class VisionView : UserControl, IDisposable
         if (!CommitDraft()) return;
         var micheId = _micheId;
         var artifactId=_artifactId;
+        var calendarMonth=_calendarMonth;var calendarDate=_calendarDate;
         var top = TopLevel.GetTopLevel(this); if (top is null) return;
         var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Add an image to Vision", AllowMultiple = false,
             FileTypeFilter = new[] { new FilePickerFileType("PNG and JPEG") {
@@ -288,7 +309,7 @@ public sealed partial class VisionView : UserControl, IDisposable
                 AppleUniformTypeIdentifiers = new[] { "public.png", "public.jpeg" },
                 MimeTypes = new[] { "image/png", "image/jpeg" }
             } } });
-        if (_micheId != micheId || _artifactId!=artifactId) { _message.Text = "Return to that Vision to add the image."; return; }
+        if (_micheId != micheId || _artifactId!=artifactId || _calendarMonth!=calendarMonth || _calendarDate!=calendarDate) { _message.Text = "Return to that page to add the image."; return; }
         foreach (var file in files) { var path = file.TryGetLocalPath(); if (path is not null) ImportImage(path,point); }
     }
     private void ShowRecovery()
@@ -298,7 +319,7 @@ public sealed partial class VisionView : UserControl, IDisposable
         foreach (var item in Items().Where(i => i.DeletedAt is not null))
         {
             var restore = new MenuItem { Header = "restore · " + WorkspaceStore.VisionObjectName(item) };
-            restore.Click += (_,_) => _session!.Act(() => _session.Store.SetVisionDeleted(_micheId,item.Id,false,_artifactId)); menu.Items.Add(restore);
+            restore.Click += (_,_) => _session!.Act(() => {if(CalendarMode)_session.Store.SetCalendarDeleted(item.Id,false);else _session.Store.SetVisionDeleted(_micheId,item.Id,false,_artifactId);}); menu.Items.Add(restore);
         }
         if (menu.Items.Count == 0) menu.Items.Add(new MenuItem { Header = "nothing deleted", IsEnabled = false });
         menu.Open(this);
@@ -311,6 +332,7 @@ public sealed partial class VisionView : UserControl, IDisposable
     }
     private void MovePointer(object? sender, PointerEventArgs e)
     {
+        if(MoveConnectionPointer(e))return;
         if(MoveSelectionPointer(e))return;
         if (_gesture is not { } g) return;
         var delta = e.GetPosition(_canvas) - g.Start;
@@ -351,15 +373,19 @@ public sealed partial class VisionView : UserControl, IDisposable
         }
         else { item.Left = Math.Clamp(item.Left + delta.X,0,Math.Max(0,_canvas.Width-item.Width)); item.Top = Math.Clamp(item.Top + delta.Y,0,10000); }
         g.Preview = item; Position(_objects[item.Id],item);
+        RefreshConnections();
         _canvas.Height = Math.Max(_canvas.Height,item.Top + item.Height + 160); e.Handled = true;
     }
     private void ReleasePointer(object? sender, PointerReleasedEventArgs e)
     {
+        if(ReleaseConnectionPointer(e))return;
         if(ReleaseSelectionPointer(e))return;
         if (_gesture is not { } g) return;
         MovePointer(sender,e); // A fast drag may deliver only the final release position.
         _gesture = null; g.Pointer.Capture(null);
-        if (g.Started) _session!.Act(() => _session.Store.SaveVisionItem(_micheId,g.Preview,_artifactId));
+        if(g.Started&&!g.Resize&&WorkspaceStore.IsVisionShape(g.Preview.Kind)&&TryAttachShape(g.Preview,e.GetPosition(_canvas))) {RefreshBoard();e.Handled=true;return;}
+        if(!g.Started&&!g.Resize&&CalendarMode&&g.Before.Kind=="text"){BeginText(new Point(g.Before.Left,g.Before.Top),g.Before);e.Handled=true;return;}
+        if (g.Started && !(CalendarMode&&!g.Resize&&CalendarDropRequested?.Invoke(new[]{g.Before.Id},e)==true)) SaveCanvasItems(new[]{g.Preview});
         RefreshBoard(); e.Handled = true;
     }
     public bool CancelGesture()
@@ -370,6 +396,7 @@ public sealed partial class VisionView : UserControl, IDisposable
     }
     public bool Escape()
     {
+        if(CancelConnection())return true;
         if (_editor is not null) { CancelDraft(); return true; }
         if (CancelGesture()) return true;
         if (_selected is not null) { _selected = null; _selection.Clear(); RefreshBoard(); return true; }
@@ -379,11 +406,13 @@ public sealed partial class VisionView : UserControl, IDisposable
     {
         if(_dialogBorder.IsVisible)
         { if(e.Key==Key.Escape) {CloseDialog(); _canvas.Focus(); e.Handled=true;} return; }
+        if(_mentionPicker.IsOpen&&e.Key==Key.Escape){_mentionPicker.IsOpen=false;e.Handled=true;return;}
         if(e.Source is Control tableCell&&tableCell.GetVisualAncestors().Any(v=>v is TableView)){if(e.Key==Key.Escape)_canvas.Focus();return;}
         HandleVisionClipboardKey(e);if(e.Handled)return;
         if (HandleSelectionSizeKey(e)||HandleZoomKey(e)) return;
+        if(_editor is null&&e.Key is Key.Delete or Key.Back&&_selectedConnection is { } edge){DisconnectObjects(edge.Source,edge.Target);e.Handled=true;return;}
         if (e.Key == Key.Escape) { if (!Escape()) CloseRequested?.Invoke(); e.Handled = true; }
-        else if (_editor is not null && e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift)) { CommitDraft(); e.Handled = true; }
+        else if (_editor is not null && e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift)) { CommitDraft(true); e.Handled = true; }
         else if (_editor is null && e.Key is Key.Delete or Key.Back && _selected is { } id) { Delete(id); e.Handled = true; }
     }
     public void Dispose()

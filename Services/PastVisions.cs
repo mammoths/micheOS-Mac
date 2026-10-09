@@ -10,9 +10,11 @@ public sealed partial class WorkspaceStore
         if(title.Length is <1 or >80 || title.Any(char.IsControl)) throw new ArgumentException("Use a title with 1–80 characters.");
         return title;
     }
-    private static List<VisionItem> SnapshotObjects(IEnumerable<VisionItem> items) => items.Select(i => {
-        var copy=CopyVision(i); copy.Id=Guid.NewGuid(); return copy;
-    }).ToList();
+    private static List<VisionItem> SnapshotObjects(IEnumerable<VisionItem> items)
+    {
+        var originals=items.ToArray();var ids=NewVisionIds(originals);
+        return originals.Select(i=>{var copy=CopyVision(i);copy.Id=ids[i.Id];RemapConnections(copy,ids);return copy;}).ToList();
+    }
     private static VisionArtifact ArtifactFor(Workspace next,Guid micheId,Guid id)
     {
         if(!next.Index.Miches.Any(m=>m.Id==micheId)) throw new ArgumentException("Restore this Miche before editing its past Vision.");

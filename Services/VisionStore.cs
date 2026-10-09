@@ -12,7 +12,7 @@ public sealed partial class WorkspaceStore
         "rounded-rectangle" => "rounded rectangle", "ellipse" => "oval / circle", _ => item.Text[..Math.Min(30,item.Text.Length)]
     };
     public static VisionItem CopyVision(VisionItem item) => new() {
-        Id = item.Id, Kind = item.Kind, Table=item.Table is null?null:TableContent.Copy(item.Table), RoundedFrame=item.RoundedFrame, Text = item.Text, FileName = item.FileName,
+        Id = item.Id, Kind = item.Kind, DownstreamIds=item.DownstreamIds?.ToList()??throw new InvalidDataException("Invalid thought connections."), Table=item.Table is null?null:TableContent.Copy(item.Table), RoundedFrame=item.RoundedFrame, NoteShape=item.NoteShape, LinkedMicheId=item.LinkedMicheId, CalendarItemId=item.CalendarItemId, Text = item.Text, FileName = item.FileName,
         Left = item.Left, Top = item.Top, Width = item.Width, Height = item.Height,
         Rotation = item.Rotation, FontSize = item.FontSize, CreatedAt = item.CreatedAt, DeletedAt = item.DeletedAt
     };
@@ -33,7 +33,10 @@ public sealed partial class WorkspaceStore
             var existing=items.SingleOrDefault(i=>i.Id==item.Id);
             if(existing is null&&item.Kind is not ("text" or "table")&&!IsVisionShape(item.Kind)||existing is not null&&(item.Kind!=existing.Kind||item.FileName!=existing.FileName))
                 throw new ArgumentException("Object type and image ownership cannot change during a canvas edit.");
-            if(existing is not null)items.Remove(existing);items.Add(CopyVision(item));
+            var copy=CopyVision(item);
+            if(existing?.CalendarItemId is { } calendarId && copy.CalendarItemId != calendarId) throw new ArgumentException("Keep this note connected to its calendar object.");
+            if(existing is not null)items.Remove(existing);items.Add(copy);
+            LinkVisionCalendar(next,micheId,copy);
         }
         TouchArtifact(next,artifactId);Commit(next);
     }
@@ -43,9 +46,11 @@ public sealed partial class WorkspaceStore
         items.Single(i => i.Id == itemId).DeletedAt = deleted ? DateTimeOffset.UtcNow : null; TouchArtifact(next,artifactId);
         Commit(next); // assets stay owned while the item is recoverable
     }
-    internal Guid AddVisionImage(Guid micheId, byte[] validatedBytes, string extension, int pixelWidth, int pixelHeight, double left, double top, Guid? artifactId=null)
+    internal Guid AddVisionImage(Guid micheId, byte[] validatedBytes, string extension, int pixelWidth, int pixelHeight, double left, double top, Guid? artifactId=null, string? calendarMonth=null, string? calendarDate=null)
     {
-        var next = Snapshot; var items = VisionItemsFor(next,micheId,artifactId);
+        var next = Snapshot;
+        if(calendarMonth is not null)CheckCalendarTarget(calendarMonth,calendarDate);
+        var items = calendarMonth is null ? VisionItemsFor(next,micheId,artifactId) : new List<VisionItem>();
         if (extension is not ("png" or "jpg") || validatedBytes.Length is < 8 or > 20971520 || pixelWidth <= 0 || pixelHeight <= 0)
             throw new ArgumentException("Use a valid PNG or JPEG image under 20 MB.");
         var fileName = micheId.ToString("N") + "/" + Guid.NewGuid().ToString("N") + "." + extension;
@@ -57,6 +62,7 @@ public sealed partial class WorkspaceStore
         if (height > 1200) { width *= 1200 / height; height = 1200; }
         items.Add(new VisionItem { Kind = "image", FileName = fileName, Left = left, Top = top,
             Width = width, Height = height });
+        if(calendarMonth is not null) next.Calendar.Items.Add(new CalendarItem{Id=items.Last().Id,OwnerMicheId=micheId,Month=calendarMonth,Date=calendarDate,Content=items.Last()});
         TouchArtifact(next,artifactId);
         var created = false;
         try
@@ -70,7 +76,7 @@ public sealed partial class WorkspaceStore
         {
             // A view notification can fail after the durable commit. Its owned asset
             // must survive whenever the published metadata already references it.
-            var published = AllVisionItems(_state).Any(i=>i.FileName==fileName);
+            var published = AllVisionItems(_state).Any(i=>i.FileName==fileName)||_state.Calendar.Items.Any(i=>i.Content.FileName==fileName);
             if (created && !published && File.Exists(path)) File.Delete(path);
             throw;
         }
@@ -102,8 +108,10 @@ public sealed partial class WorkspaceStore
         foreach (var board in collections)
         foreach (var item in board.Items)
         {
+            if(item is not null)ValidateConnections(item,state.Version);
+            if(item is not null&&(item.LinkedMicheId is { } linked&&(!micheIds.Contains(linked)||item.Kind!="text"||state.Version<9)||item.CalendarItemId is { } calendarId&&(state.Version<9||!state.Calendar.Items.Any(i=>i.Id==calendarId&&i.OwnerMicheId==board.MicheId&&i.Content.Kind==item.Kind&&i.Content.FileName==item.FileName))))throw new InvalidDataException("Invalid connected Miche note.");
             if(item?.Kind=="table"){if(state.Version<8||item.Table is null||item.FileName is not null)throw new InvalidDataException("Invalid table object.");TableContent.Validate(item.Table);}else if(item?.Table is not null)throw new InvalidDataException("Unexpected table content.");
-            if (item is null || item.RoundedFrame&&(item.Kind!="text"||state.Version<7) || item.Id == Guid.Empty || !ids.Add(item.Id) || item.Kind is not ("text" or "image" or "table") && !IsVisionShape(item.Kind) ||
+            if (item is null || item.NoteShape is { } noteShape && (state.Version < 10 || item.Kind != "text" || !IsVisionShape(noteShape)) || item.RoundedFrame&&(item.Kind!="text"||state.Version<7) || item.Id == Guid.Empty || !ids.Add(item.Id) || item.Kind is not ("text" or "image" or "table") && !IsVisionShape(item.Kind) ||
                 IsVisionShape(item.Kind) && (state.Version < 6 || item.FileName is not null || item.Text != "") ||
                 item.Text is null || item.Text.Length > 20000 || item.Kind == "text" && (string.IsNullOrWhiteSpace(item.Text) || item.FileName is not null) ||
                 item.Kind == "image" && (item.FileName is null || !Regex.IsMatch(item.FileName,

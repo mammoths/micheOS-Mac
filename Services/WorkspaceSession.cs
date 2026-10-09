@@ -120,6 +120,7 @@ public sealed partial class WorkspaceSession : IDisposable
         _home?.CancelDeskGesture();
         if (_home is not null && !_home.PrepareVisionToLeave()) throw new IOException("Vision draft could not be saved. Keep this window open and retry.");
         if (_flowWindow is not null && !_flowWindow.SaveBeforeClose()) throw new IOException("Flow could not save. Keep its window open and retry.");
+        if (_calendarWindow is not null && !_calendarWindow.SaveBeforeClose()) throw new IOException("Calendar could not save. Keep its window open and retry.");
         foreach(var (id, window) in _pageWindows)Pages.Host(id,true,window.Geometry());
         if(_clipboardWindow is not null)Store.SetClipboardFloating(true,_clipboardWindow.Geometry());
         Store.SaveEditors(_views.ToDictionary(p => p.Key, p => p.Value.EditorSnapshot()),
@@ -130,7 +131,7 @@ public sealed partial class WorkspaceSession : IDisposable
     {
         if (IsQuitting) return true;
         if (!Act(SaveAllEditors)) return false;
-        if (_pageWindows.Count > 0 || _floating.Count > 0 || _clipboardWindow?.IsVisible == true || _flowWindow?.IsVisible == true || _meiliWindow?.IsVisible == true) _home?.Hide();
+        if (_pageWindows.Count > 0 || _floating.Count > 0 || _clipboardWindow?.IsVisible == true || _flowWindow?.IsVisible == true || _meiliWindow?.IsVisible == true || _calendarWindow?.IsVisible == true) _home?.Hide();
         else Dispatcher.UIThread.Post(() => TryQuit());
         return false;
     }
@@ -153,6 +154,7 @@ public sealed partial class WorkspaceSession : IDisposable
         _pageWindows.Clear();
         _clipboardWindow?.CloseForTransfer();
         _flowWindow?.Close();
+        _calendarWindow?.Close();
         _meiliWindow?.CloseSaved();
         _home?.Close();
         Dispose();

@@ -88,7 +88,7 @@ try
     using (var store = new WorkspaceStore(upgraded))
     {
         var state = store.Snapshot;
-        Check(state.Version == 8 && state.DumpSpaces is null && state.Widgets.Count == 1, "Upgrade lost widget visibility");
+        Check(state.Version == 11 && state.DumpSpaces is null && state.Widgets.Count == 1, "Upgrade lost widget visibility");
         Check(!state.Widgets.Any(w => w.MicheId == legacyHome.Id), "Upgrade added widget to blank home");
         Check(state.RootDump.Single().Id == legacyCapture.Id && state.Trash.Single().Miche.Id == legacyRemoved.Id,
             "Upgrade changed capture or trash identity");
@@ -161,7 +161,7 @@ try
     var v2Text = JsonSerializer.Serialize(v2); var v2Path = Path.Combine(v2Directory,"workspace.json"); File.WriteAllText(v2Path,v2Text);
     using (var store = new WorkspaceStore(v2Directory))
     {
-        Check(store.Snapshot.Version == 8 && store.Snapshot.Widgets.Single().Id == widgetId && store.Snapshot.VisionBoards.Count == 0,
+        Check(store.Snapshot.Version == 11 && store.Snapshot.Widgets.Single().Id == widgetId && store.Snapshot.VisionBoards.Count == 0,
             "Vision upgrade changed widgets or added fake boards");
         Check(File.ReadAllText(Directory.GetFiles(Path.Combine(v2Directory,"backups"),"before-v3-*.json").Single()) == v2Text,
             "Vision upgrade didn't preserve exact v2 bytes");
@@ -264,7 +264,7 @@ try
     var v4=JsonSerializer.Deserialize<Workspace>(File.ReadAllText(Path.Combine(scopes,"workspace.json")))!;v4.Version=4;
     var v4Bytes=JsonSerializer.Serialize(v4);File.WriteAllText(Path.Combine(v4Directory,"workspace.json"),v4Bytes);
     using(var store=new WorkspaceStore(v4Directory))
-        Check(store.Snapshot.Version==8 && store.Snapshot.VisionArtifacts.Count==0 && File.ReadAllText(Directory.GetFiles(Path.Combine(v4Directory,"backups"),"before-v5-*.json").Single())==v4Bytes &&
+        Check(store.Snapshot.Version==11 && store.Snapshot.VisionArtifacts.Count==0 && File.ReadAllText(Directory.GetFiles(Path.Combine(v4Directory,"backups"),"before-v5-*.json").Single())==v4Bytes &&
             store.Snapshot.Widgets.Single().LocalEditor.Text=="local draft", "Past visions migration didn't preserve exact v4/scoped drafts");
     // A blocked migration commit must retain the original version-1 file.
     var failedUpgrade = Path.Combine(root, "failed-upgrade");
@@ -303,7 +303,7 @@ try
     var v5=new Workspace();v5.Index.RootMicheId=Guid.NewGuid();v5.Index.ActiveMicheId=v5.Index.RootMicheId;
     v5.Index.Miches.Add(new Miche.Mac.Models.Miche {Id=v5.Index.RootMicheId,Name="home"});v5.Version=5;
     var exact=JsonSerializer.Serialize(v5);File.WriteAllText(Path.Combine(migrationRoot,"workspace.json"),exact);
-    using(var store=new WorkspaceStore(migrationRoot))Check(store.Snapshot.Version==8&&File.ReadAllText(Directory.GetFiles(Path.Combine(migrationRoot,"backups"),"before-v6-*.json").Single())==exact,"Schema 6 migration lost exact original backup");
+    using(var store=new WorkspaceStore(migrationRoot))Check(store.Snapshot.Version==11&&File.ReadAllText(Directory.GetFiles(Path.Combine(migrationRoot,"backups"),"before-v6-*.json").Single())==exact,"Schema 6 migration lost exact original backup");
     var clipRoot=Path.Combine(root,"clipboard");Guid resumeId;
     var originalFile=Path.Combine(root,"synthetic-resume.pdf");File.WriteAllText(originalFile,"synthetic PDF fixture");
     using(var store=new WorkspaceStore(clipRoot))
@@ -338,17 +338,63 @@ try
     var v6Root=Path.Combine(root,"v6-to-v7");Directory.CreateDirectory(v6Root);
     var v6=new Workspace {Version=6};v6.Index.RootMicheId=Guid.NewGuid();v6.Index.ActiveMicheId=v6.Index.RootMicheId;v6.Index.Miches.Add(new Miche.Mac.Models.Miche {Id=v6.Index.RootMicheId,Name="home"});
     var v6Bytes=JsonSerializer.Serialize(v6);File.WriteAllText(Path.Combine(v6Root,"workspace.json"),v6Bytes);
-    using(var store=new WorkspaceStore(v6Root))Check(store.Snapshot.Version==8&&File.ReadAllText(Directory.GetFiles(Path.Combine(v6Root,"backups"),"before-v7-*.json").Single())==v6Bytes,"Schema 7 lost exact original backup");
+    using(var store=new WorkspaceStore(v6Root))Check(store.Snapshot.Version==11&&File.ReadAllText(Directory.GetFiles(Path.Combine(v6Root,"backups"),"before-v7-*.json").Single())==v6Bytes,"Schema 7 lost exact original backup");
     var tableRoot=Path.Combine(root,"table-v8");Directory.CreateDirectory(tableRoot);
     var v7=new Workspace{Version=7};v7.Index.RootMicheId=Guid.NewGuid();v7.Index.ActiveMicheId=v7.Index.RootMicheId;v7.Index.Miches.Add(new Miche.Mac.Models.Miche{Id=v7.Index.RootMicheId,Name="home"});
     var v7Original=JsonSerializer.Serialize(v7);File.WriteAllText(Path.Combine(tableRoot,"workspace.json"),v7Original);
     using(var store=new WorkspaceStore(tableRoot))
     {
-        Check(store.Snapshot.Version==8&&File.ReadAllText(Directory.GetFiles(Path.Combine(tableRoot,"backups"),"before-v8-*.json").Single())==v7Original,"Table migration lost original backup");
+        Check(store.Snapshot.Version==11&&File.ReadAllText(Directory.GetFiles(Path.Combine(tableRoot,"backups"),"before-v8-*.json").Single())==v7Original,"Table migration lost original backup");
         var table=TableContent.Create();table.Cells[0][0].Add(new PageRun{Text="Monday"});var item=new VisionItem{Kind="table",Table=table,Width=360,Height=188};store.SaveVisionItem(v7.Index.RootMicheId,item);
         var copy=WorkspaceStore.CopyVision(item);copy.Table!.Cells[0][0][0].Text="changed";Check(item.Table.Cells[0][0][0].Text=="Monday","Table clone shared mutable cells");
         var bytes=File.ReadAllBytes(store.FilePath);copy.Table.ColumnWidths=new(){double.NaN,120,120};Reject<InvalidDataException>(()=>store.SaveVisionItem(v7.Index.RootMicheId,copy));Check(File.ReadAllBytes(store.FilePath).SequenceEqual(bytes),"Invalid table overwrote saved state");
     }
+    var calendarRoot=Path.Combine(root,"calendar-v9");Directory.CreateDirectory(calendarRoot);
+    var v8=new Workspace{Version=8};var calendarHome=Guid.NewGuid();v8.Index.RootMicheId=v8.Index.ActiveMicheId=calendarHome;v8.Index.Miches.Add(new Miche.Mac.Models.Miche{Id=calendarHome,Name="home"});
+    var v8Original=JsonSerializer.Serialize(v8);File.WriteAllText(Path.Combine(calendarRoot,"workspace.json"),v8Original);
+    Guid sharedId,sourceId,viet;
+    using(var store=new WorkspaceStore(calendarRoot))
+    {
+        Check(store.Snapshot.Version==11&&File.ReadAllText(Directory.GetFiles(Path.Combine(calendarRoot,"backups"),"before-v9-*.json").Single())==v8Original,"Calendar migration lost exact source backup");
+        Check(store.Snapshot.Calendar.Items.Count==0&&store.Snapshot.Calendar.VisibleIn.Count==0,"Calendar seeded or replaced existing intent");
+        viet=store.Create("tieng viet");store.SetMicheNoteColor(viet,WorkspaceStore.NoteColors[1]);
+        var note=new VisionItem{Text="viet homework + flashcards",LinkedMicheId=viet,Left=80,Top=120};sourceId=note.Id;
+        store.SaveVisionItem(calendarHome,note);sharedId=store.Snapshot.VisionBoards.Single().Items.Single().CalendarItemId!.Value;
+        Check(store.Snapshot.Calendar.Items.Single().Id==sharedId&&store.Snapshot.Calendar.Items.Single().Date is null&&store.Snapshot.Calendar.Items.Single().Content.LinkedMicheId==viet,"Miche note was not staged as a shared object");
+        store.ScheduleCalendarItem(sharedId,"2026-10-09");
+        store.ShowCalendarWidget(calendarHome);store.ShowCalendarWidget(viet);
+        Check(store.Snapshot.Calendar.VisibleIn.Count==2&&store.Snapshot.Calendar.Items.Count==1,"Calendar widgets duplicated canonical notes");
+        var source=store.Snapshot.VisionBoards.Single().Items.Single();source.Text="homework + ten flashcards";store.SaveVisionItem(calendarHome,source);
+        Check(store.Snapshot.Calendar.Items.Single().Content.Text==source.Text&&store.Snapshot.Calendar.Items.Single().Date=="2026-10-09","Vision edit lost the day assignment or shared text");
+        var planned=store.Snapshot.Calendar.Items.Single().Content;planned.Text="review the flashcards";planned.Left=144;store.SaveCalendarItems("2026-10","2026-10-09",new[]{planned});
+        Check(store.Snapshot.VisionBoards.Single().Items.Single().Text==planned.Text&&store.Snapshot.VisionBoards.Single().Items.Single().Left==80,"Calendar edit diverged from Vision or changed its layout");
+        var before=File.ReadAllBytes(store.FilePath);Reject<ArgumentException>(()=>store.ScheduleCalendarItem(sharedId,"2026-02-30"));Check(File.ReadAllBytes(store.FilePath).SequenceEqual(before),"Invalid calendar date changed disk");
+        Reject<ArgumentException>(()=>store.ScheduleCalendarItems(new[]{sharedId,Guid.NewGuid()},"2026-10-10"));Check(store.Snapshot.Calendar.Items.Single().Date=="2026-10-09","Group move partially published");
+        var artifact=store.StartFreshVision(calendarHome,"yesterday’s thinking")!.Value;
+        Check(store.Snapshot.Calendar.Items.Single().Id==sharedId&&store.Snapshot.VisionArtifacts.Single().Items.Single().CalendarItemId==sharedId,"Starting fresh erased calendar continuity");
+        planned.Text="carry this thought forward";store.SaveCalendarItems("2026-10","2026-10-09",new[]{planned});
+        Check(store.Snapshot.VisionArtifacts.Single(a=>a.Id==artifact).Items.Single().Text==planned.Text,"Past Vision lost the live note connection");
+        var pasted=store.PasteCalendarItems("2026-10",null,calendarHome,new[]{planned});Check(pasted.Single()!=sharedId&&store.Snapshot.Calendar.Items.Single(i=>i.Id==pasted[0]).Date is null,"Calendar copy did not get a separate identity");
+        store.SetCalendarDeleted(sharedId,true);store.SetCalendarDeleted(sharedId,false);Check(store.Snapshot.Calendar.Items.Single(i=>i.Id==sharedId).Content.DeletedAt is null,"Calendar delete could not be restored");
+        store.Rename(viet,"tiếng Việt");Check(store.Snapshot.Calendar.Items.Single(i=>i.Id==sharedId).Content.LinkedMicheId==viet,"Renaming broke Miche links");
+        before=File.ReadAllBytes(store.FilePath);File.Delete(store.FilePath+".bak");Directory.CreateDirectory(store.FilePath+".bak");planned.Text="must not publish";
+        Reject<UnauthorizedAccessException>(()=>store.SaveCalendarItems("2026-10","2026-10-09",new[]{planned}));
+        Check(File.ReadAllBytes(store.FilePath).SequenceEqual(before)&&store.Snapshot.Calendar.Items.Single(i=>i.Id==sharedId).Content.Text=="carry this thought forward","Failed save changed calendar or disk");Directory.Delete(store.FilePath+".bak");
+    }
+    using(var store=new WorkspaceStore(calendarRoot))Check(store.Snapshot.Calendar.Items.Single(i=>i.Id==sharedId).Date=="2026-10-09"&&store.Snapshot.Calendar.VisibleIn.Count==2&&store.Snapshot.Index.Miches.Single(m=>m.Id==viet).NoteColor==WorkspaceStore.NoteColors[1],"Calendar restart lost date, widgets or color");
+    var shapeRoot=Path.Combine(root,"calendar-v10");Directory.CreateDirectory(shapeRoot);
+    var v9=new Workspace{Version=9};var shapeHome=Guid.NewGuid();v9.Index.RootMicheId=v9.Index.ActiveMicheId=shapeHome;v9.Index.Miches.Add(new Miche.Mac.Models.Miche{Id=shapeHome,Name="home"});
+    var originalNote=new VisionItem{Text="keep this thought",Left=24,Top=24};v9.Calendar.Items.Add(new CalendarItem{Id=originalNote.Id,OwnerMicheId=shapeHome,Month="2026-10",Date="2026-10-09",Content=originalNote});
+    var exactV9=JsonSerializer.Serialize(v9);File.WriteAllText(Path.Combine(shapeRoot,"workspace.json"),exactV9);
+    using(var store=new WorkspaceStore(shapeRoot))
+    {
+        Check(store.Snapshot.Version==11&&File.ReadAllText(Directory.GetFiles(Path.Combine(shapeRoot,"backups"),"before-v10-*.json").Single())==exactV9&&store.Snapshot.Calendar.Items.Single().Content.Text==originalNote.Text,"Schema 10 lost the previous calendar or exact backup");
+        var oval=new VisionItem{Kind="ellipse",Width=180,Height=100};store.SaveCalendarItems("2026-10",null,new[]{oval});store.AttachCalendarShape(oval.Id,originalNote.Id,220,90);
+        Check(store.Snapshot.Calendar.Items.Single(i=>i.Id==originalNote.Id).Content.NoteShape=="ellipse"&&store.Snapshot.Calendar.Items.Single(i=>i.Id==oval.Id).Content.DeletedAt is not null,"Combining shape and note lost identity or recoverability");
+        var bytes=File.ReadAllBytes(store.FilePath);var invalidDecoration=WorkspaceStore.CopyVision(store.Snapshot.Calendar.Items.Single(i=>i.Id==originalNote.Id).Content);invalidDecoration.NoteShape="triangle";
+        Reject<InvalidDataException>(()=>store.SaveCalendarItems("2026-10","2026-10-09",new[]{invalidDecoration}));Check(File.ReadAllBytes(store.FilePath).SequenceEqual(bytes),"Invalid note decoration changed saved state");
+    }
+    checks += ConnectionChecks.Run(root);
     Console.WriteLine($"PASS: {checks} persistence, recovery, isolation and failure checks. Synthetic data only.");
 }
 finally { Directory.Delete(root, true); }

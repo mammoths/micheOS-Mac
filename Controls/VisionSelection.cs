@@ -22,6 +22,7 @@ public sealed partial class VisionView
     public void SelectObject(Guid id,bool additive=false)
     {
         if(!Items().Any(i=>i.Id==id&&i.DeletedAt is null))return;
+        _selectedConnection=null;
         var current=SelectedIds.ToArray();
         if(additive){_selection.UnionWith(current);if(!_selection.Add(id))_selection.Remove(id);_selected=_selection.FirstOrDefault() is var first&&first!=Guid.Empty?first:null;}
         else if(!current.Contains(id)){_selection.Clear();_selection.Add(id);_selected=id;}
@@ -65,6 +66,7 @@ public sealed partial class VisionView
         var dy=Math.Clamp(movement.Y,-g.Before.Min(i=>i.Top),10000-g.Before.Max(i=>i.Top));
         g.Preview=g.Before.Select(i=>{var copy=WorkspaceStore.CopyVision(i);copy.Left+=dx;copy.Top+=dy;return copy;}).ToArray();
         foreach(var item in g.Preview)Position(_objects[item.Id],item);
+        RefreshConnections();
         _canvas.Height=Math.Max(_canvas.Height,g.Preview.Max(i=>i.Top+i.Height+160));e.Handled=true;return true;
     }
     private bool ReleaseSelectionPointer(PointerReleasedEventArgs e)
@@ -76,7 +78,7 @@ public sealed partial class VisionView
         }
         if(_group is not { } g)return false;
         MoveSelectionPointer(e);_group=null;g.Pointer.Capture(null);
-        if(g.Started)_session!.Act(()=>_session.Store.SaveVisionItems(_micheId,g.Preview,_artifactId));
+        if(g.Started&&!(CalendarMode&&CalendarDropRequested?.Invoke(g.Before.Select(i=>i.Id).ToArray(),e)==true))SaveCanvasItems(g.Preview);
         RefreshBoard();e.Handled=true;return true;
     }
     private bool CancelSelectionGesture()
@@ -98,7 +100,7 @@ public sealed partial class VisionView
             if(width<8||height<8||width>4000||height>4000||font<8||font>200)return false;
             item.Width=width;item.Height=height;item.FontSize=font;if(item.Kind=="table")ScaleTable(item,factor);
         }
-        var saved=_session!.Act(()=>_session.Store.SaveVisionItems(_micheId,changed,_artifactId));RefreshBoard();return saved;
+        var saved=SaveCanvasItems(changed);RefreshBoard();return saved;
     }
     private bool HandleSelectionSizeKey(KeyEventArgs e)
     {

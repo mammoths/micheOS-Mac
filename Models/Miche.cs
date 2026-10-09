@@ -5,6 +5,7 @@ public sealed class Miche
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "";
+    public string? NoteColor { get; set; }
     public Guid? ParentMicheId { get; set; }
     public Guid? CollabId { get; set; }
     public string? Purpose { get; set; }
@@ -51,7 +52,8 @@ public sealed class ArchivedMiche
 // Mac-only envelope; no compatibility or Windows import is implied.
 public sealed class Workspace
 {
-    public int Version { get; set; } = 8;
+    public int Version { get; set; } = 11;
+    public CalendarBook Calendar { get; set; } = new();
     public ClipboardShelf Clipboard { get; set; } = new();
     public MicheIndex Index { get; set; } = new();
     public List<ArchivedMiche> Trash { get; set; } = new();
@@ -117,6 +119,10 @@ public sealed class VisionItem
     public string Kind { get; set; } = "text";
     public PageBlock? Table { get; set; }
     public bool RoundedFrame { get; set; }
+    public string? NoteShape { get; set; }
+    public Guid? LinkedMicheId { get; set; }
+    public Guid? CalendarItemId { get; set; }
+    public List<Guid> DownstreamIds { get; set; } = new();
     public string Text { get; set; } = "";
     public string? FileName { get; set; }
     public double Left { get; set; }

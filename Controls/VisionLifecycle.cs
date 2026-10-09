@@ -31,6 +31,7 @@ public sealed partial class VisionView
     }
     private void RefreshLifecycle()
     {
+        if(CalendarMode){_caption.Text=_calendarDate is null?"MONTH MARGIN":DateOnly.Parse(_calendarDate).ToString("dddd · MMM d");return;}
         var artifact=_artifactId is { } id ? _session?.Store.Snapshot.VisionArtifacts.SingleOrDefault(a=>a.Id==id) : null;
         _caption.Text=artifact is null ? "VISION / current" : "PAST VISION / "+artifact.Title;
         if(_freshButton is not null) _freshButton.IsVisible=_artifactId is null;

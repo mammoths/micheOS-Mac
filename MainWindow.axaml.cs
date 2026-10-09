@@ -21,19 +21,21 @@ public partial class MainWindow : Window
 
     private readonly WorkspaceSession _session;
     private ClipboardView? _clipboardView;
+    private CalendarWidgetView? _calendarWidget;
     public MainWindow(WorkspaceSession session)
     {
         _session = session; _store = session.Store;
         InitializeComponent();
+        InitializeMicheColors();
         MacWindowChrome.Apply(this);
         VisionOverlay.Connect(_session);
         PagesDesk.Connect(_session);
-        Board.PointerPressed+=(_,e)=>{if(e.ClickCount==2&&!VisionOverlay.IsVisible&&!NamingPanel.IsVisible&&!ManagePanel.IsVisible&&(e.Source is Control blank&&!IsTextEntry(blank)&&blank is not Button&&!blank.GetVisualAncestors().Any(a=>a is PageView or DumpView or ClipboardView or Button))){var point=e.GetPosition(PagesDesk);_session.CreatePage(Math.Max(24,point.X),Math.Max(24,point.Y));e.Handled=true;}};
+        Board.PointerPressed+=(_,e)=>{if(e.ClickCount==2&&!VisionOverlay.IsVisible&&!NamingPanel.IsVisible&&!ManagePanel.IsVisible&&(e.Source is Control blank&&!IsTextEntry(blank)&&blank is not Button&&!blank.GetVisualAncestors().Any(a=>a is PageView or DumpView or ClipboardView or CalendarWidgetView or Button))){var point=e.GetPosition(PagesDesk);_session.CreatePage(Math.Max(24,point.X),Math.Max(24,point.Y));e.Handled=true;}};
         VisionOverlay.CloseRequested += () => { VisionOverlay.IsVisible = false; Refresh(); SpaceMenuButton.Focus(); };
         DateLabel.Text = DateTime.Now.ToString("ddd / dd MMM").ToUpperInvariant();
         _session.Changed += Refresh;
         _session.StatusChanged += ShowStatus;
-        Closed += (_, _) => { VisionOverlay.Dispose(); _session.Changed -= Refresh; _session.StatusChanged -= ShowStatus; };
+        Closed += (_, _) => { _calendarWidget?.Dispose(); VisionOverlay.Dispose(); _session.Changed -= Refresh; _session.StatusChanged -= ShowStatus; };
         Closing += (_, e) => { if (!_session.IsQuitting) e.Cancel = !_session.BeforeHomeClose(); };
         Refresh();
         AddHandler(InputElement.TextInputEvent, (_, e) => {
@@ -46,6 +48,8 @@ public partial class MainWindow : Window
             if (e.Handled) return;
             if (e.Key == Key.V && e.KeyModifiers == KeyModifiers.None && !IsTextEntry(e.Source) && !NamingPanel.IsVisible && !ManagePanel.IsVisible)
             { ToggleVision(); e.Handled = true; }
+            if (e.Key == Key.C && e.KeyModifiers == KeyModifiers.None && !IsTextEntry(e.Source) && !NamingPanel.IsVisible && !ManagePanel.IsVisible)
+            { OpenCanonicalCalendar(this,e); e.Handled = true; }
             if (e.Key == Key.Escape && !VisionOverlay.IsVisible)
             {
                 if (CommandOverlay.IsVisible) { CloseCommands(); e.Handled = true; return; }
@@ -86,6 +90,7 @@ public partial class MainWindow : Window
         if (_store is null) return;
         var state = _store.Snapshot;
         var active = state.Index.Miches.Single(m => m.Id == state.Index.ActiveMicheId);
+        RefreshMicheColor(active);
         var names = state.Index.Miches.Select(m => (m.Id, m.Name)).ToArray();
         // Autosaving a draft must not dismiss a menu the user just opened.
         if (_menuActiveId != state.Index.ActiveMicheId || _menuMiches?.SequenceEqual(names) != true)
@@ -104,6 +109,8 @@ public partial class MainWindow : Window
             var rename = new MenuItem { Header = "rename this niche" }; rename.Click += RenameSpace; menu.Items.Add(rename);
             var manage = new MenuItem { Header = "manage · recently deleted" }; manage.Click += ManageSpace; menu.Items.Add(manage);
             var vision = new MenuItem { Header = "vision · V" }; vision.Click += (_, _) => ToggleVision(); menu.Items.Add(vision);
+            var calendar = new MenuItem { Header = "calendar · C" }; calendar.Click += OpenCanonicalCalendar; menu.Items.Add(calendar);
+            var colors = new MenuItem { Header = "Miche color…" };colors.Click+=OpenMicheColors;menu.Items.Add(colors);
             var flow = new MenuItem {Header="flow · local time blocks"}; flow.Click += OpenFlow; menu.Items.Add(flow);
             var search = new MenuItem { Header = "search · /" }; search.Click += (_, _) => OpenCommands(); menu.Items.Add(search);
             menu.Items.Add(new Separator());
@@ -138,9 +145,13 @@ public partial class MainWindow : Window
         ClipboardHost.IsVisible=showClipboard;
         if(!showClipboard)ClipboardHost.Content=null;
         DeskPanel.IsVisible=showDump;
+        var showCalendar=state.Calendar.VisibleIn.Contains(active.Id);
+        if(showCalendar){_calendarWidget??=new CalendarWidgetView(_session);CalendarHost.Content=_calendarWidget;}
+        CalendarHost.IsVisible=showCalendar;
+        if(!showCalendar)CalendarHost.Content=null;
         var hasPages=_session.Pages.Snapshot.Pages.Any(p=>p.MicheId==active.Id&&p.ParentId is null&&p.DeletedAt is null&&!p.Floating);
-        DeskScroll.IsVisible=CompactHeader.IsVisible=showDump||showClipboard||hasPages;
-        EmptyBoard.IsVisible = !showDump&&!showClipboard&&!hasPages;
+        DeskScroll.IsVisible=CompactHeader.IsVisible=showDump||showClipboard||showCalendar||hasPages;
+        EmptyBoard.IsVisible = !showDump&&!showClipboard&&!showCalendar&&!hasPages;
         PagesDesk.IsVisible=hasPages&&!VisionOverlay.IsVisible&&!CommandOverlay.IsVisible;PagesDesk.Refresh();
         DeleteSpaceButton.IsEnabled = active.Id != state.Index.RootMicheId;
         TrashList.Children.Clear();
@@ -163,6 +174,11 @@ public partial class MainWindow : Window
     private bool Act(Action action, string message = "Saved on this Mac.") => _session.Act(action, message);
     public void CancelDeskGesture(){DeskPanel.CancelGesture();PagesDesk.CancelGesture();}
     public bool PrepareVisionToLeave() => VisionOverlay.PrepareToLeave();
+    public void HideVisionForNavigation(){VisionOverlay.IsVisible=false;CloseOverlays();}
+    private void OpenCanonicalCalendar(object? sender,RoutedEventArgs e)
+    {if(!PrepareVisionToLeave())return;CloseOverlays();_session.OpenCalendar();}
+    private void AddCalendar(object? sender,RoutedEventArgs e)
+    {if(!PrepareVisionToLeave())return;VisionOverlay.IsVisible=false;CloseOverlays();_session.OpenCalendarWidget();}
     public void ToggleVision()
     {
         if (VisionOverlay.IsVisible)
@@ -205,7 +221,7 @@ public partial class MainWindow : Window
     { if (_store is not null) Act(() => { _session.SaveAllEditors(); _store.Delete(_store.Snapshot.Index.ActiveMicheId); }, "Moved to recently deleted. Restore it here anytime."); }
     private void CancelOverlay(object? sender, RoutedEventArgs e) => CloseOverlays();
     private void CloseOverlays()
-    { SpaceMenuButton.ContextMenu?.Close(); LookupSuggestions.IsOpen = false;
+    { _colorPicker.IsOpen=false; SpaceMenuButton.ContextMenu?.Close(); LookupSuggestions.IsOpen = false;
       CommandOverlay.IsVisible = false; NamingPanel.IsVisible = false; ManagePanel.IsVisible = false; Board.IsVisible = true; }
     private void OpenMeili(object? sender, RoutedEventArgs e)
     { if (!PrepareVisionToLeave()) return; _session.OpenMeili(); QueryBox.Text=""; CloseOverlays(); }
@@ -229,6 +245,8 @@ public partial class MainWindow : Window
         FlowSuggestion.IsVisible=CommandFlowSuggestion.IsVisible=flowMatches;
         MeiliSuggestion.IsVisible=CommandMeiliSuggestion.IsVisible=query.Length==0 || "thedailymeili".Contains(query,StringComparison.OrdinalIgnoreCase) || "meili".Equals(query,StringComparison.OrdinalIgnoreCase);
         ClipboardSuggestion.IsVisible=CommandClipboardSuggestion.IsVisible=query.Length==0||"clipboard".Contains(query,StringComparison.OrdinalIgnoreCase);
+        CalendarSuggestion.IsVisible=CommandCalendarSuggestion.IsVisible=query.Length==0||"calendar".Contains(query,StringComparison.OrdinalIgnoreCase);
+        CalendarSpaceSuggestion.IsVisible=CommandCalendarSpaceSuggestion.IsVisible=query.Length==0||"calendar-space".Contains(query,StringComparison.OrdinalIgnoreCase);
         var localMatches = query.Length == 0 || "local-dump".Contains(query,StringComparison.OrdinalIgnoreCase);
         DumpSuggestion.IsVisible = CommandDumpSuggestion.IsVisible = matches;
         NewSuggestion.IsVisible = CommandNewSuggestion.IsVisible = newMatches;
@@ -248,6 +266,9 @@ public partial class MainWindow : Window
         {
             var query = ((sender as TextBox)?.Text ?? "").Trim().TrimStart('/');
             if (query.Equals("new", StringComparison.OrdinalIgnoreCase)) { BeginName(false); QueryBox.Text = ""; }
+            else if(query.Equals("calendar",StringComparison.OrdinalIgnoreCase))AddCalendar(sender,e);
+            else if(query.Equals("calendar-space",StringComparison.OrdinalIgnoreCase)||query.Equals("cal",StringComparison.OrdinalIgnoreCase))OpenCanonicalCalendar(sender,e);
+            else if(query.Equals("vision",StringComparison.OrdinalIgnoreCase)){CloseOverlays();ToggleVision();}
             else if (query.Equals("thedailymeili",StringComparison.OrdinalIgnoreCase) || query.Equals("meili",StringComparison.OrdinalIgnoreCase)) OpenMeili(sender,e);
             else if (query.Equals("flow",StringComparison.OrdinalIgnoreCase) || query.Equals("today",StringComparison.OrdinalIgnoreCase)) OpenFlow(sender,e);
             else if (query.Equals("table",StringComparison.OrdinalIgnoreCase)) AddTablePage(sender,e);

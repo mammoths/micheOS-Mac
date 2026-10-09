@@ -1,5 +1,15 @@
 # Development progress
 
+## 0.13.0 · October 9, 2026
+
+Vision thoughts now connect with smooth directed curves. Drag the selected thought’s small dot onto a target, or choose Connect then click the target. Branches follow movement, group movement and resizing. Right-click a curve to remove it. Connected copies, saved past Visions and recovered boards remap identities safely; deleted endpoints hide their lines until restored.
+
+This snapshot also brings the local Mac calendar work into the public source: one shared month/day model, month and vertical views, a freeform margin, linked Miche notes, a `/calendar` day card, shaped notes, and per-Miche colors. These were developed in the calendar chat.
+
+186 persistence checks, 356 headless UI checks, 104 geometry checks, 50 Flow checks and 8 Meili tests pass. Native synthetic QA verified connection click/drag, branches, object movement, right-click removal and restart persistence. Schema 11 keeps an exact schema-10 backup. Existing local notes and media were preserved during installation.
+
+Public source excludes personal workspace content, resume files, provider credentials, reference media and production result URLs. fal integration is implemented; the Mac OpenRouter adapter remains pending.
+
 ## 0.10.0 · October 9, 2026
 
 Blank pages can grow from a compact note into a collection: rich text, rounded selections/blocks, owned PNG/JPEG images, nested pages, block reordering, resizing, popout/dock and recoverable deletion. Right-click provides insertions and child-page deletion, without persistent plus buttons or placeholder text.

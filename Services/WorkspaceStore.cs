@@ -89,6 +89,27 @@ public sealed partial class WorkspaceStore : IDisposable
                 {
                     var next=Clone(_state);next.Version=8;var backups=Path.Combine(DirectoryPath,"backups");Directory.CreateDirectory(backups);File.Copy(FilePath,Path.Combine(backups,"before-v8-"+Guid.NewGuid().ToString("N")+".json"));Commit(next,false);
                 }
+                if (_state.Version == 8)
+                {
+                    var next = Clone(_state); next.Version = 9;
+                    var backups = Path.Combine(DirectoryPath, "backups"); Directory.CreateDirectory(backups);
+                    File.Copy(FilePath, Path.Combine(backups, "before-v9-" + Guid.NewGuid().ToString("N") + ".json"));
+                    Commit(next, false);
+                }
+                if (_state.Version == 9)
+                {
+                    var next = Clone(_state); next.Version = 10;
+                    var backups = Path.Combine(DirectoryPath, "backups"); Directory.CreateDirectory(backups);
+                    File.Copy(FilePath, Path.Combine(backups, "before-v10-" + Guid.NewGuid().ToString("N") + ".json"));
+                    Commit(next, false);
+                }
+                if (_state.Version == 10)
+                {
+                    var next = Clone(_state); next.Version = 11;
+                    var backups = Path.Combine(DirectoryPath, "backups"); Directory.CreateDirectory(backups);
+                    File.Copy(FilePath, Path.Combine(backups, "before-v11-" + Guid.NewGuid().ToString("N") + ".json"));
+                    Commit(next, false);
+                }
             }
             else
             {
@@ -295,7 +316,7 @@ public sealed partial class WorkspaceStore : IDisposable
     private static void Validate(Workspace state)
     {
         var index = state.Index;
-        if (state.Version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8) || index is null || index.Version != 1 || index.Miches is null ||
+        if (state.Version is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11) || index is null || index.Version != 1 || index.Miches is null ||
             index.Miches.Count == 0 || state.Trash is null || state.RootDump is null ||
             index.Miches.Any(m => m is null || m.Id == Guid.Empty || string.IsNullOrWhiteSpace(m.Name) ||
                 m.Name.Length > 80 || m.Name.Any(char.IsControl)) ||
@@ -310,6 +331,7 @@ public sealed partial class WorkspaceStore : IDisposable
             throw new InvalidDataException("Miche could not safely read this workspace. The saved file has not been replaced.");
         var micheIds = index.Miches.Select(m => m.Id).Concat(state.Trash.Select(t => t.Miche.Id)).ToHashSet();
         ValidateClipboard(state,micheIds);
+        ValidateCalendar(state, micheIds);
         if (state.Version == 1)
         {
             if (state.DumpSpaces is null || state.DumpSpaces.Distinct().Count() != state.DumpSpaces.Count || state.DumpSpaces.Any(id => !micheIds.Contains(id)))

@@ -6,6 +6,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 using Miche.Mac;
 using Miche.Mac.Controls;
 using Miche.Mac.Services;
@@ -38,7 +39,7 @@ void Render(Window view, string name)
 {
     var target = Environment.GetEnvironmentVariable("MICHE_RENDER_DIR");
     if (string.IsNullOrWhiteSpace(target)) return;
-    Directory.CreateDirectory(target); Jobs();
+    Directory.CreateDirectory(target); Jobs(); view.UpdateLayout(); AvaloniaHeadlessPlatform.ForceRenderTimerTick(); Jobs();
     using var bitmap = view.CaptureRenderedFrame();
     bitmap?.Save(Path.Combine(target, name + ".png"));
 }
@@ -833,6 +834,181 @@ try
         var vi=pageSession.Store.Snapshot.VisionBoards.Single().Items.Single();vision.SelectObject(vi.Id);var copy=vision.CopySelection();Check(copy is not null&&vision.PasteSelection(copy),"Vision table did not copy/paste");
         var tables=pageSession.Store.Snapshot.VisionBoards.Single().Items;Check(tables.Count==2&&tables.All(i=>i.Table?.Cells.Count==3),"Vision copied table content was lost");
         Jobs();pw.UpdateLayout();Check(pw.GetVisualDescendants().OfType<TableView>().Count()==2&&pw.GetVisualDescendants().OfType<TableView>().All(t=>t.Bounds.Width>0&&t.GetVisualDescendants().OfType<TextBox>().Count()==9),"Vision table cells were not laid out");Render(pw,"pages-and-tables");pageSession.TryQuit();Jobs();
+    }
+    using(var cs=new WorkspaceSession(Path.Combine(root,"calendar-controls")))
+    {
+        var home=cs.OpenHome();Jobs();var owner=cs.Store.Snapshot.Index.RootMicheId;
+        var viet=cs.Store.Create("tieng viet");cs.Store.SetMicheNoteColor(viet,WorkspaceStore.NoteColors[1]);
+        var calendarMeili=cs.Store.Create("thedailymeili");cs.Store.SetMicheNoteColor(calendarMeili,WorkspaceStore.NoteColors[0]);cs.Store.Activate(owner);Jobs();
+        home.ToggleVision();Jobs();var vision=Named<VisionView>(home,"VisionOverlay");
+        vision.BeginText(new Point(80,80));Jobs();vision.DraftEditor!.Text="/@tieng viet -- viet homework + flashcards";
+        Check(vision.CommitDraft(),"Miche mention did not commit");Jobs();
+        var source=cs.Store.Snapshot.VisionBoards.Single().Items.Single();var calendarShared=source.CalendarItemId!.Value;
+        Check(source.LinkedMicheId==viet&&source.Text=="viet homework + flashcards"&&cs.Store.Snapshot.Calendar.Items.Single().Date is null,"Miche mention did not become a staged connected note");
+        vision.BeginText(new Point(80,200));Jobs();vision.DraftEditor!.Text="/@thedailymeili";vision.DraftEditor.RaiseEvent(new KeyEventArgs{RoutedEvent=InputElement.KeyDownEvent,Key=Key.Enter});Jobs();
+        Check(vision.DraftEditor is not null&&vision.DraftEditor.Text=="","Mention-only Enter did not leave room for the note body");vision.DraftEditor!.Text="create first mail club";vision.CommitDraft();Jobs();
+        Check(cs.Store.Snapshot.Calendar.Items.Count==2,"Second Miche note replaced the first");
+        vision.BoardCanvas.Focus();home.KeyPressQwerty(PhysicalKey.C,RawInputModifiers.None);home.KeyReleaseQwerty(PhysicalKey.C,RawInputModifiers.None);Jobs();
+        var cw=cs.CalendarWindow!;var cv=cw.Calendar;Check(cw.IsVisible&&cv.DayCards.Count==DateTime.DaysInMonth(DateTime.Today.Year,DateTime.Today.Month),"C did not open canonical month");
+        Check(cv.DayCards.Values.All(card=>card.Bounds.Width>=80&&card.Bounds.Width<=150),"Month grid does not fit seven readable day columns");
+        cs.OpenCalendar();Jobs();Check(ReferenceEquals(cw,cs.CalendarWindow),"Canonical calendar opened duplicate windows");
+        var today=DateTime.Today.ToString("yyyy-MM-dd");var month=today[..7];
+        var drag=cv.Editor.ObjectControls[calendarShared].TranslatePoint(new Point(18,45),cw)!.Value;
+        var drop=cv.DayCards[today].TranslatePoint(new Point(34,55),cw)!.Value;int calendarCommits=0;void CountCommit()=>calendarCommits++;cs.Store.Changed+=CountCommit;
+        cw.MouseDown(drag,MouseButton.Left);cw.MouseMove(drop);cw.MouseUp(drop,MouseButton.Left);Jobs();cs.Store.Changed-=CountCommit;
+        Check(cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==calendarShared).Date==today&&calendarCommits==1,"Margin drag did not assign the same object with one commit");
+        Check(cv.ShowDate(today),"Could not open day canvas");Jobs();Check(cv.Editor.ObjectControls.ContainsKey(calendarShared),"Day canvas did not use canonical object");
+        var current=cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==calendarShared).Content;
+        cv.Editor.BeginText(new Point(current.Left,current.Top),current);Jobs();cv.Editor.DraftEditor!.Text="viet homework + ten flashcards";cv.Editor.CommitDraft();Jobs();
+        Check(cs.Store.Snapshot.VisionBoards.Single().Items.Single(i=>i.Id==source.Id).Text=="viet homework + ten flashcards","Day edit diverged from Vision");
+        cs.Store.SaveCalendarItems(month,today,new[]{new Miche.Mac.Models.VisionItem{Text="meal planned: salmon",Left=24,Top=140,Width=260,Height=40,FontSize=18},new Miche.Mac.Models.VisionItem{Text="important: interview",Left=24,Top=210,Width=260,Height=40,FontSize=18}});Jobs();
+        Render(cw,"calendar-day");
+        cv.ShowMargin();Jobs();Render(cw,"calendar-month");
+        Check(cv.SetView("vertical")&&cv.DayCards.Count==DateTime.DaysInMonth(DateTime.Today.Year,DateTime.Today.Month),"Vertical view lost day cards");Jobs();
+        cv.MonthScroll.Offset=new Vector(0,Math.Max(0,(DateTime.Today.Day-2)*156));Jobs();Render(cw,"calendar-vertical");
+        Check(cv.SetView("month")&&cs.Store.Snapshot.Calendar.Items.Count==4,"View switching copied or erased calendar objects");
+        cv.ShowDate(today);Jobs();
+        Check(cv.Editor.ImportImage(Path.Combine(AppContext.BaseDirectory,"fixtures","vision.png"),new Point(24,300)),"Calendar image import failed");Jobs();
+        var calendarImage=cs.Store.Snapshot.Calendar.Items.Single(i=>i.Content.Kind=="image");
+        Check(calendarImage.OwnerMicheId==owner&&calendarImage.Date==today&&File.Exists(cs.Store.VisionAssetPath(owner,calendarImage.Content.FileName!)),"Calendar image lost asset ownership or day assignment");
+        cv.Editor.SelectObject(calendarImage.Id);var imageCopy=cv.Editor.CopySelection();Check(imageCopy is not null&&cv.Editor.PasteSelection(imageCopy),"Calendar image copy/paste failed");Jobs();
+        Check(cs.Store.Snapshot.Calendar.Items.Count(i=>i.Content.Kind=="image")==2,"Calendar image paste replaced its original");
+        cs.Store.Rename(viet,"tiếng Việt");vision.BeginText(new Point(80,320));Jobs();vision.DraftEditor!.Text="/@tieng viet -- bring yesterday forward";vision.CommitDraft();Jobs();
+        Check(cs.Store.Snapshot.VisionBoards.Single().Items.Any(i=>i.LinkedMicheId==viet&&i.Text=="bring yesterday forward"),"Accent-free mention did not find the existing Miche");
+        cs.Store.Rename(calendarMeili,"@thedailymeili");vision.BeginText(new Point(80,460));Jobs();vision.DraftEditor!.Text="/@thedailymeili -- plan the next issue";vision.CommitDraft();Jobs();
+        Check(cs.Store.Snapshot.VisionBoards.Single().Items.Any(i=>i.LinkedMicheId==calendarMeili&&i.Text=="plan the next issue"),"Leading-at Miche name required a double-at command");
+        Check(cv.ChangeMonth(1)&&cv.Editor.ObjectControls.Count==0&&cv.ChangeMonth(-1),"Month staging leaked into another month");Jobs();
+        var count=cs.Store.Snapshot.Calendar.Items.Count;cv.Editor.BeginText(new Point(80,200));Jobs();cv.Editor.DraftEditor!.Text="/@tieng viet";
+        Check(cv.ShowDate(today)&&cv.Editor.DraftEditor is null&&cs.Store.Snapshot.Calendar.Items.Count==count,"Leaving a mention-only draft moved it onto a different day");
+        home.HideVisionForNavigation();home.OpenCommands();Named<TextBox>(home,"CommandBox").Text="/calendar";Named<TextBox>(home,"CommandBox").RaiseEvent(new KeyEventArgs{RoutedEvent=InputElement.KeyDownEvent,Key=Key.Enter});Jobs();
+        Check(Named<ContentControl>(home,"CalendarHost").Content is CalendarWidgetView&&cs.Store.Snapshot.Calendar.VisibleIn.Contains(owner),"/calendar did not add the today widget");Render(home,"calendar-widget");
+        cs.Store.Activate(calendarMeili);cs.OpenCalendarWidget();Jobs();Check(cs.Store.Snapshot.Calendar.VisibleIn.Count==2&&cs.Store.Snapshot.Calendar.Items.Count==count,"Calendar in another Miche did not share today’s collection");
+        cv.ShowDate(today);cv.Editor.BeginText(new Point(24,290));Jobs();cv.Editor.DraftEditor!.Text="a thought to keep for tomorrow";
+        Check(cs.TryQuit(),"Calendar draft blocked normal quit");Jobs();
+        using var persisted=new WorkspaceStore(cs.Store.DirectoryPath);Check(persisted.Snapshot.Calendar.Items.Any(i=>i.Date==today&&i.Content.Text=="a thought to keep for tomorrow"),"Calendar quit discarded a day draft");
+    }
+    using(var cs=new WorkspaceSession(Path.Combine(root,"calendar-writing")))
+    {
+        cs.OpenHome();Jobs();cs.OpenCalendar();Jobs();var cw=cs.CalendarWindow!;var cv=cw.Calendar;var today=DateTime.Today.ToString("yyyy-MM-dd");
+        var point=cv.DayCards[today].TranslatePoint(new Point(20,90),cw)!.Value;
+        cw.MouseDown(point,MouseButton.Left);cw.MouseUp(point,MouseButton.Left);Jobs();
+        Check(cv.InlineEditor?.IsFocused==true,"Clicking a day did not focus writing inside the tile");
+        cw.KeyTextInput("meal planned: salmon");Jobs();
+        cw.KeyPressQwerty(PhysicalKey.Enter,RawInputModifiers.None);cw.KeyReleaseQwerty(PhysicalKey.Enter,RawInputModifiers.None);Jobs();
+        var meal=cs.Store.Snapshot.Calendar.Items.Single();
+        Check(meal.Date==today&&meal.Content.Text=="meal planned: salmon"&&cv.InlineEditor?.IsFocused==true,"Enter did not save the note and keep writing below it");
+        cw.KeyTextInput("important: interview");Jobs();var editor=cv.InlineEditor;
+        cs.Store.Rename(cs.Store.Snapshot.Index.RootMicheId,"home, continued");cw.Width-=40;Jobs();
+        Check(ReferenceEquals(editor,cv.InlineEditor)&&editor!.Text=="important: interview"&&editor.IsFocused,"Refresh or resize discarded the inline caret/draft");
+        Check(cv.CommitInline(),"Inline note could not commit");Jobs();
+        var interview=cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id!=meal.Id);
+        Check(interview.Content.Top>meal.Content.Top+meal.Content.Height&&cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==meal.Id).Content.Text==meal.Content.Text,"Continuation overwrote or overlapped the earlier note");
+        var previous=cv.NotePreviews[meal.Id].TranslatePoint(new Point(8,8),cw)!.Value;
+        cw.MouseDown(previous,MouseButton.Left);cw.MouseUp(previous,MouseButton.Left);Jobs();
+        Check(cv.InlineEditor is {Text:""},"One click on a filled card did not continue underneath its existing text");
+        cw.KeyTextInput("keep yesterday’s thought");Check(cv.CommitInline(),"Filled-card continuation failed");Jobs();
+        Check(cs.Store.Snapshot.Calendar.Items.Count==3&&cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==meal.Id).Content.Text==meal.Content.Text,"Click-to-continue changed prior writing");
+        cv.ShowMargin();Jobs();Check(cv.Editor.AddShape("ellipse",new Point(40,40),180,100),"Could not draw a loose oval");Jobs();
+        var shape=cs.Store.Snapshot.Calendar.Items.Single(i=>i.Content.Kind=="ellipse");
+        Check(cv.Editor.ObjectControls[shape.Id].GetVisualDescendants().Any(c=>c.GetType().Name=="VisionPrimitive"),"Loose shape rendered as a word");
+        var from=cv.Editor.ObjectControls[shape.Id].TranslatePoint(new Point(80,5),cw)!.Value;
+        var onto=cv.NotePreviews[meal.Id].TranslatePoint(new Point(10,10),cw)!.Value;var commits=0;void Count()=>commits++;cs.Store.Changed+=Count;
+        cw.MouseDown(from,MouseButton.Left);cw.MouseMove(onto);cw.MouseUp(onto,MouseButton.Left);Jobs();cs.Store.Changed-=Count;
+        var decorated=cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==meal.Id);
+        Check(decorated.Content.NoteShape=="ellipse"&&cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==shape.Id).Content.DeletedAt is not null&&commits==1,"Dropping an oval onto a note did not combine them atomically");
+        Check(cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==interview.Id).Content.Top>=decorated.Content.Top+decorated.Content.Height,"Wrapping an earlier note overlapped its continuation");
+        Check(cv.NotePreviews[meal.Id].GetVisualDescendants().Any(c=>c.GetType().Name=="VisionPrimitive"),"Calendar did not draw the oval around the note");
+        cv.ShowDate(today);Jobs();Check(cv.Editor.SetNoteShape(interview.Id,"rounded-rectangle"),"Could not frame selected note");Jobs();
+        Check(cv.Editor.AddShape("rounded-rectangle",new Point(24,300),160,90),"Could not draw a frame in the day editor");Jobs();
+        var looseFrame=cs.Store.Snapshot.Calendar.Items.Single(i=>i.Content.Kind=="rounded-rectangle");
+        var frameAt=cv.Editor.ObjectControls[looseFrame.Id].TranslatePoint(new Point(70,5),cw)!.Value;
+        var textAt=cv.Editor.ObjectControls[interview.Id].TranslatePoint(new Point(10,10),cw)!.Value;
+        cw.MouseDown(frameAt,MouseButton.Left);cw.MouseMove(textAt);cw.MouseUp(textAt,MouseButton.Left);Jobs();
+        Check(cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==looseFrame.Id).Content.DeletedAt is not null&&cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==interview.Id).Content.NoteShape=="rounded-rectangle","Dragging the edge of a shape onto canvas text did not attach it");
+        Check(cv.BeginInline(today,cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==meal.Id)),"Could not edit decorated note");Jobs();cw.KeyTextInput(" + greens");Check(cv.CommitInline(),"Decorated note edit failed");Jobs();
+        Check(cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==meal.Id).Content.NoteShape=="ellipse"&&cs.Store.Snapshot.Calendar.Items.Single(i=>i.Id==meal.Id).Content.Text=="meal planned: salmon + greens","Editing broke the combined shape/text component");
+        cv.BeginInline(today);Jobs();cw.KeyTextInput("save me after a failed write");
+        var before=File.ReadAllBytes(cs.Store.FilePath);File.Delete(cs.Store.FilePath+".bak");Directory.CreateDirectory(cs.Store.FilePath+".bak");
+        Check(!cv.SetView("vertical")&&cv.InlineEditor?.Text=="save me after a failed write"&&File.ReadAllBytes(cs.Store.FilePath).SequenceEqual(before),"Failed save lost inline writing or changed views");Directory.Delete(cs.Store.FilePath+".bak");
+        Check(cv.SetView("vertical"),"Recovered writing could not switch views");Jobs();cv.MonthScroll.Offset=new Vector(0,Math.Max(0,(DateTime.Today.Day-1)*156));Jobs();
+        cv.BeginInline(today);Jobs();Render(cw,"calendar-writing");cv.CommitInline();
+        var linked=cs.Store.Create("tiếng Việt");cv.BeginInline(today);Jobs();cw.KeyTextInput("/@tieng viet -- flashcards after lunch");
+        Check(cv.CommitInline()&&cs.Store.Snapshot.Calendar.Items.Any(i=>i.Content.LinkedMicheId==linked&&i.Content.Text=="flashcards after lunch"),"Inline Miche mention lost its color/link");Jobs();
+        cv.BeginInline(today);Jobs();cw.KeyTextInput("tomorrow starts here");Check(cs.TryQuit(),"Quit did not save direct tile writing");Jobs();
+        using var reopened=new WorkspaceStore(cs.Store.DirectoryPath);
+        Check(reopened.Snapshot.Calendar.Items.Any(i=>i.Content.Text=="tomorrow starts here")&&reopened.Snapshot.Calendar.Items.Single(i=>i.Id==meal.Id).Content.NoteShape=="ellipse","Restart lost direct writing or its attached shape");
+    }
+    using(var colors=new WorkspaceSession(Path.Combine(root,"miche-colors")))
+    {
+        var rootMiche=colors.Store.Snapshot.Index.RootMicheId;colors.Store.SetMicheNoteColor(rootMiche,WorkspaceStore.NoteColors[0]);
+        var hw=colors.OpenHome();Jobs();var button=Named<Button>(hw,"ColorPickerButton");
+        var picker=hw.GetLogicalDescendants().OfType<Avalonia.Controls.Primitives.Popup>().Single(p=>p.Name=="MicheColorPicker");
+        Button Choice(string color)=>picker.Child!.GetVisualDescendants().OfType<Button>().Single(b=>b.Tag as string==color);
+        void Pick(string color){if(!picker.IsOpen)Press(hw,"ColorPickerButton");Choice(color).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Jobs();}
+        string HomeTint()=>((Avalonia.Media.LinearGradientBrush)hw.Background!).GradientStops[0].Color.ToString();
+        Check(HomeTint()=="#ff422d36","An existing Miche color did not tint its home on opening");
+        var date=Named<TextBlock>(hw,"DateLabel");var iconAt=button.TranslatePoint(new Point(15,14),hw)!.Value;
+        Check(button.Bounds.Width>=28&&button.TranslatePoint(default,hw)!.Value.X>=date.TranslatePoint(new Point(date.Bounds.Width,0),hw)!.Value.X,"Color icon is not beside the date");
+        hw.MouseDown(iconAt,MouseButton.Left);hw.MouseUp(iconAt,MouseButton.Left);Jobs();
+        Check(picker.IsOpen&&picker.Child!.GetVisualDescendants().OfType<Button>().Count(b=>b.Tag is string)==6,"Footer palette icon did not open the six color choices");
+        Pick(WorkspaceStore.NoteColors[2]);
+        Check(colors.Store.Snapshot.Index.Miches.Single(m=>m.Id==rootMiche).NoteColor==WorkspaceStore.NoteColors[2]&&HomeTint()=="#ff2d3b4b"&&!picker.IsOpen,"Choosing blue did not immediately change and save the current Miche");
+        Check(((Avalonia.Media.ISolidColorBrush)date.Foreground!).Color.ToString()=="#ffbccedc","Date accent did not match the Miche color");Render(hw,"miche-color-blue");
+        var garden=colors.Store.Create("garden");Jobs();Pick(WorkspaceStore.NoteColors[4]);
+        Check(HomeTint()=="#ff483a27"&&colors.Store.Snapshot.Index.Miches.Single(m=>m.Id==rootMiche).NoteColor==WorkspaceStore.NoteColors[2],"Changing another Miche recolored the previous one");
+        colors.Store.Activate(rootMiche);Jobs();Check(HomeTint()=="#ff2d3b4b","Switching Miches did not restore their own colors");
+        var menu=Named<Button>(hw,"SpaceMenuButton").ContextMenu!;menu.Open(Named<Button>(hw,"SpaceMenuButton"));Jobs();
+        menu.Items.OfType<MenuItem>().Single(i=>i.Header as string=="Miche color…").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));Jobs();
+        Check(picker.IsOpen,"Miche menu did not use the working color picker");Pick(WorkspaceStore.NoteColors[3]);Check(HomeTint()=="#ff3b2e48","Miche menu color change did not tint home");
+        Press(hw,"ColorPickerButton");colors.Store.Activate(garden);Jobs();Check(!picker.IsOpen,"Color picker stayed open for the wrong Miche after switching");
+        colors.OpenCalendarWidget();Jobs();var today=DateTime.Today.ToString("yyyy-MM-dd");
+        colors.Store.SaveCalendarItems(today[..7],today,new[]{new Miche.Mac.Models.VisionItem{Text="a garden thought",LinkedMicheId=garden,FontSize=18}});Jobs();
+        var widget=(CalendarWidgetView)Named<ContentControl>(hw,"CalendarHost").Content!;
+        Pick(WorkspaceStore.NoteColors[5]);
+        Check(widget.GetVisualDescendants().OfType<Border>().Any(b=>b.Background is Avalonia.Media.ISolidColorBrush brush&&brush.Color.ToString()=="#ffbfd8d1"),"Changing a Miche color did not update its existing calendar bubble");
+        var bytes=File.ReadAllBytes(colors.Store.FilePath);var tint=HomeTint();File.Delete(colors.Store.FilePath+".bak");Directory.CreateDirectory(colors.Store.FilePath+".bak");
+        Pick(WorkspaceStore.NoteColors[1]);
+        Check(picker.IsOpen&&HomeTint()==tint&&File.ReadAllBytes(colors.Store.FilePath).SequenceEqual(bytes),"Failed color save changed the UI/disk or closed its picker");Directory.Delete(colors.Store.FilePath+".bak");
+        Pick(WorkspaceStore.NoteColors[1]);Check(HomeTint()=="#ff344030","Color picker could not recover after a failed save");
+        hw.Width=480;Jobs();var icon=button.TranslatePoint(default,hw)!.Value;Check(icon.X>=0&&icon.Y>=0&&icon.X+button.Bounds.Width<=hw.Bounds.Width&&icon.Y+button.Bounds.Height<=hw.Bounds.Height,"Color icon is clipped at minimum home size");Render(hw,"miche-color-sage");
+        Check(colors.TryQuit(),"Color-changing workspace did not quit normally");Jobs();
+        using var reopened=new WorkspaceSession(colors.Store.DirectoryPath);var rh=reopened.OpenHome();Jobs();
+        Check(reopened.Store.Snapshot.Index.Miches.Single(m=>m.Id==rootMiche).NoteColor==WorkspaceStore.NoteColors[3]&&reopened.Store.Snapshot.Index.Miches.Single(m=>m.Id==garden).NoteColor==WorkspaceStore.NoteColors[1]&&((Avalonia.Media.LinearGradientBrush)rh.Background!).GradientStops[0].Color.ToString()=="#ff344030","Miche colors did not survive restart");reopened.TryQuit();Jobs();
+    }
+    using(var graph=new WorkspaceSession(Path.Combine(root,"vision-connections-ui")))
+    {
+        var gw=graph.OpenHome();Jobs();var m=graph.Store.Snapshot.Index.ActiveMicheId;
+        var a=new Miche.Mac.Models.VisionItem{Text="A thought",NoteShape="ellipse",Left=100,Top=100,Width=210,Height=80};
+        var b=new Miche.Mac.Models.VisionItem{Text="Downstream",RoundedFrame=true,Left=480,Top=300,Width=160,Height=70};
+        var c=new Miche.Mac.Models.VisionItem{Text="Another branch",RoundedFrame=true,Left=130,Top=500,Width=170,Height=70};
+        graph.Store.SaveVisionItems(m,new[]{a,b,c});gw.ToggleVision();Jobs();var v=Named<VisionView>(gw,"VisionOverlay");
+        Check(v.BeginConnection(a.Id),"Could not arm connection");Jobs();var click=v.ObjectControls[b.Id].TranslatePoint(new Point(40,35),gw)!.Value;
+        gw.MouseDown(click,MouseButton.Left);gw.MouseUp(click,MouseButton.Left);Jobs();
+        Check(v.ConnectionSourceId is null&&v.ConnectionControls.Count==1&&graph.Store.Snapshot.VisionBoards.Single().Items.Single(i=>i.Id==a.Id).DownstreamIds.SequenceEqual(new[]{b.Id}),"Routed downstream click did not save connection");
+        Check(v.ConnectObjects(a.Id,c.Id)&&v.ConnectionControls.Count==2,"One thought could not branch");Jobs();
+        var before=File.ReadAllBytes(graph.Store.FilePath);var curve=v.ConnectionControls.Single(l=>l.TargetId==b.Id).Curve;
+        var at=v.ObjectControls[a.Id].TranslatePoint(new Point(40,35),gw)!.Value;
+        gw.MouseDown(at,MouseButton.Left);gw.MouseMove(at+new Vector(40,20));Jobs();
+        Check(v.ConnectionControls.Single(l=>l.TargetId==b.Id).Curve.Start!=curve.Start&&File.ReadAllBytes(graph.Store.FilePath).SequenceEqual(before),"Connection did not follow the unsaved drag preview");
+        gw.MouseUp(at+new Vector(40,20),MouseButton.Left);Jobs();
+        Check(graph.Store.Snapshot.VisionBoards.Single().Items.Single(i=>i.Id==a.Id).Left==140&&v.ConnectionControls.Count==2,"Release lost connection or object position");
+        v.SelectObject(a.Id);v.RefreshBoard();Jobs();var port=v.ObjectControls[a.Id].GetVisualDescendants().OfType<Border>().Single(p=>p.Name=="VisionConnectionPort");
+        var portAt=port.TranslatePoint(new Point(6,6),gw)!.Value;var targetAt=v.ObjectControls[b.Id].TranslatePoint(new Point(40,35),gw)!.Value;
+        Check(v.DisconnectObjects(a.Id,b.Id),"Could not remove existing connection");Jobs();v.SelectObject(a.Id);v.RefreshBoard();Jobs();
+        port=v.ObjectControls[a.Id].GetVisualDescendants().OfType<Border>().Single(p=>p.Name=="VisionConnectionPort");portAt=port.TranslatePoint(new Point(6,6),gw)!.Value;
+        gw.MouseDown(portAt,MouseButton.Left);gw.MouseMove(targetAt);gw.MouseUp(targetAt,MouseButton.Left);Jobs();
+        Check(v.ConnectionSourceId is null&&v.ConnectionControls.Count==2,"Dragging the connection dot failed");
+        var line=v.ConnectionControls.Single(l=>l.TargetId==b.Id);var middle=line.TranslatePoint(line.Curve.At(.5),gw)!.Value;
+        gw.MouseDown(middle,MouseButton.Left);gw.MouseUp(middle,MouseButton.Left);Jobs();Check(v.GetVisualDescendants().OfType<Button>().Any(x=>x.Content as string=="remove connection"),"Connector curve was not clickable");
+        var empty=line.TranslatePoint(new Point(900,900),gw)!.Value;Check(!ReferenceEquals(gw.InputHitTest(empty),line),"Connector swallowed empty canvas clicks");
+        v.SetZoom(.5);Jobs();line=v.ConnectionControls.Single(l=>l.TargetId==b.Id);middle=line.TranslatePoint(line.Curve.At(.5),gw)!.Value;
+        gw.MouseDown(middle,MouseButton.Left);gw.MouseUp(middle,MouseButton.Left);Jobs();Check(v.GetVisualDescendants().OfType<Button>().Any(x=>x.Content as string=="remove connection"),"Connection hit test did not track zoom");
+        gw.MouseDown(middle,MouseButton.Right);gw.MouseUp(middle,MouseButton.Right);Jobs();Check(v.ConnectionMenu?.IsOpen==true,"Right-click connection menu closed immediately");v.ConnectionMenu!.IsOpen=false;
+        graph.Store.SetVisionDeleted(m,b.Id,true);Jobs();Check(v.ConnectionControls.Count==1,"Deleting endpoint left visible connection");graph.Store.SetVisionDeleted(m,b.Id,false);Jobs();Check(v.ConnectionControls.Count==2,"Restoring endpoint did not restore connection");
+        v.SelectObject(a.Id);v.SelectObject(b.Id,true);var copy=v.CopySelection();Check(copy is not null&&v.PasteSelection(copy),"Connected selection did not paste");Jobs();Check(v.ConnectionControls.Count==3,"Pasted pair did not carry its internal connection");
+        Check(v.BeginConnection(a.Id)&&v.Escape()&&v.ConnectionSourceId is null,"Escape did not cancel connection mode");
+        Check(v.ConnectObjects(a.Id,b.Id),"Duplicate connection reported failure");Jobs();Render(gw,"vision-connected-thoughts");
+        Check(graph.TryQuit(),"Connected workspace did not quit normally");Jobs();
     }
     Console.WriteLine($"PASS: {checks} headless window/control checks. Synthetic data only; native OS behavior remains unverified.");
 }

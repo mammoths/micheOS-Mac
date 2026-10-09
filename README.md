@@ -59,3 +59,12 @@ Double-click blank Miche space or use `/page` to create a small page. Write, for
 Tables share one schema across pages, `/table` widgets and Vision, with row/column editing, Tab navigation, colors and group sizing. See [blank-page scope](docs/BLANK-PAGES.md) for shortcuts, persistence and limits.
 
 Validation: 117 store, 273 headless UI, 50 Flow and 8 Meili checks. Native synthetic QA additionally checked rich formatting, image import, nested-page deletion, blank-space menus and restart retention.
+
+
+## 0.13 · Connected thoughts
+
+In Vision, select a thought and drag its small dot onto another thought. Alternatively, choose **Connect** and click a target. Repeat to branch. Curves stay attached while objects move or resize; right-click a curve to remove it. Copy both endpoints to copy their connection.
+
+The Mac preview also includes a canonical calendar with month and vertical views, `/calendar` day cards and Miche-colored notes. Connections currently belong to current or saved Vision canvases.
+
+See [connection behavior and data model](docs/VISION-CONNECTIONS.md). Validation: 186 store, 356 UI, 104 geometry, 50 Flow and 8 Meili checks.

@@ -5,7 +5,7 @@ namespace Miche.Mac.Services;
 
 public static class VisionImages
 {
-    public static Guid Import(WorkspaceStore store, Guid micheId, string source, double left, double top, Guid? artifactId=null)
+    public static Guid Import(WorkspaceStore store, Guid micheId, string source, double left, double top, Guid? artifactId=null, string? calendarMonth=null, string? calendarDate=null)
     {
         var length = new FileInfo(source).Length;
         if (length is < 8 or > 20971520) throw new ArgumentException("Use a PNG or JPEG image under 20 MB.");
@@ -29,7 +29,7 @@ public static class VisionImages
             if (bitmap.PixelSize.Width != width || bitmap.PixelSize.Height != height) throw new ArgumentException("Image dimensions are invalid.");
         }
         catch (Exception e) when (e is not ArgumentException) { throw new ArgumentException("This image could not be decoded.", e); }
-        return store.AddVisionImage(micheId, bytes, extension, width, height, Math.Clamp(left,0,10000), Math.Clamp(top,0,10000),artifactId);
+        return store.AddVisionImage(micheId, bytes, extension, width, height, Math.Clamp(left,0,10000), Math.Clamp(top,0,10000),artifactId,calendarMonth,calendarDate);
     }
     private static (string Extension, int Width, int Height) Dimensions(byte[] bytes)
     {
